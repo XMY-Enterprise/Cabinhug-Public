@@ -1,0 +1,39 @@
+.card {
+  min-width: 0;
+}
+
+.float {
+  background: var(--sa-color-surface-float);
+  border: 1px solid var(--sa-color-border);
+  border-radius: var(--sa-radius-lg);
+  box-shadow: var(--sa-shadow-float);
+  backdrop-filter: blur(10px);
+}
+
+.plain {
+  background: var(--sa-color-surface);
+  border: 1px solid var(--sa-color-border);
+  border-radius: var(--sa-radius-lg);
+  box-shadow: var(--sa-shadow-card);
+}
+
+.inset {
+  background: var(--sa-color-surface-inset);
+  border-radius: var(--sa-radius-md);
+}
+
+.pad-none {
+  padding: 0;
+}
+
+.pad-sm {
+  padding: var(--sa-space-3);
+}
+
+.pad-md {
+  padding: var(--sa-space-4);
+}
+
+.pad-lg {
+  padding: var(--sa-space-5) var(--sa-space-6);
+}

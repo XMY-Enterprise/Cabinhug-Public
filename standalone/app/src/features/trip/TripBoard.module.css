@@ -1,0 +1,177 @@
+.board {
+  position: absolute;
+  inset: 0;
+  z-index: var(--sa-z-page);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  gap: var(--sa-space-4);
+  padding: var(--sa-space-4) var(--sa-space-6) var(--sa-space-4);
+  background: var(--sa-color-surface);
+  overflow: hidden;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sa-space-4);
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-3);
+}
+
+.avatar {
+  width: var(--sa-control-md);
+  height: var(--sa-control-md);
+  padding: 0;
+  border: 1px solid var(--sa-color-border);
+  border-radius: 50%;
+  background: var(--sa-color-brand-tint);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* ── 标题区 ── */
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sa-space-4);
+  padding-bottom: var(--sa-space-4);
+  border-bottom: 1px solid var(--sa-color-divider);
+}
+
+.heading {
+  display: grid;
+  gap: var(--sa-space-1);
+}
+
+.titleLine {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-3);
+}
+
+.route {
+  margin: 0;
+  font: var(--sa-text-display);
+  font-size: 34px;
+}
+
+.meta {
+  font: var(--sa-text-subtitle);
+  font-weight: 400;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sa-space-4);
+  min-width: 0;
+}
+
+/* 天页签与视图切换之间的那段空：导览进度放这里，没有任务时它不渲染、空着。 */
+.toolbarGrow {
+  flex: 1;
+  max-width: 420px;
+  min-width: 0;
+}
+
+/* ── 内容 ── */
+.content {
+  min-height: 0;
+  overflow: auto;
+}
+
+.days {
+  display: grid;
+  gap: var(--sa-space-4);
+  align-items: start;
+}
+
+.dayCard {
+  display: grid;
+  gap: var(--sa-space-3);
+}
+
+.inlineLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--sa-space-2);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--sa-color-info);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: var(--sa-space-4);
+  align-items: start;
+}
+
+.hotel,
+.tip {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sa-space-4);
+}
+
+.hotelBody {
+  display: grid;
+  gap: var(--sa-space-1);
+  min-width: 0;
+}
+
+.hotelName {
+  margin: 0;
+  font: var(--sa-text-subtitle);
+}
+
+.hotelLine {
+  font: var(--sa-text-body);
+  color: var(--sa-color-text-secondary);
+}
+
+.hotelTags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sa-space-2);
+  margin-top: var(--sa-space-1);
+}
+
+.price {
+  font: var(--sa-text-body-strong);
+}
+
+.tipIcon {
+  margin-top: 2px;
+  color: var(--sa-color-brand);
+}
+
+.tipTitle {
+  font: var(--sa-text-body-strong);
+}
+
+.empty {
+  margin: var(--sa-space-8) 0;
+  text-align: center;
+  color: var(--sa-color-text-secondary);
+}

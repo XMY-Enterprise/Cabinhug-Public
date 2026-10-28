@@ -1,0 +1,39 @@
+.dot {
+  display: inline-block;
+  flex: none;
+  border-radius: 50%;
+}
+
+.sm {
+  width: 8px;
+  height: 8px;
+}
+
+.md {
+  width: 14px;
+  height: 14px;
+}
+
+.ok {
+  background: var(--sa-color-ok);
+  box-shadow: 0 0 0 3px var(--sa-color-ok-soft);
+}
+
+.busy {
+  background: var(--sa-color-brand);
+  animation: breathe 1.4s var(--sa-ease) infinite;
+}
+
+.danger {
+  background: var(--sa-color-danger);
+}
+
+.idle {
+  background: var(--sa-color-text-tertiary);
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.35;
+  }
+}

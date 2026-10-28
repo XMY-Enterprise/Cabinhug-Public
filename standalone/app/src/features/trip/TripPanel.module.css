@@ -1,0 +1,147 @@
+.panel {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  animation: enter var(--sa-dur) var(--sa-ease);
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+/* 左缘的把手：一根短竖条，横拖换档。 */
+.grip {
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  width: 14px;
+  height: 56px;
+  margin-top: -28px;
+  border-radius: var(--sa-radius-pill);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.grip::before,
+.grip::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--sa-color-border-strong);
+}
+
+.grip::before {
+  left: 4px;
+}
+
+.grip::after {
+  right: 4px;
+}
+
+/* ── 标题栏 ── 1 倍：标题与工具一行、副标题另起；2 倍：三者一行。 */
+.head,
+.headWide {
+  display: grid;
+  align-items: center;
+  column-gap: var(--sa-space-3);
+  padding: var(--sa-space-4) var(--sa-space-4) var(--sa-space-2) var(--sa-space-5);
+}
+
+.head {
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "title tools"
+    "sub sub";
+}
+
+.headWide {
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "title sub tools";
+}
+
+.title {
+  grid-area: title;
+  margin: 0;
+  font: var(--sa-text-headline);
+  font-size: 24px;
+}
+
+.subtitle {
+  grid-area: sub;
+  font: var(--sa-text-subtitle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tools {
+  grid-area: tools;
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-2);
+}
+
+.nav {
+  display: grid;
+  gap: var(--sa-space-3);
+  padding: var(--sa-space-2) var(--sa-space-4) var(--sa-space-3);
+}
+
+/* ── 内容 ── */
+.body,
+.bodyWide {
+  min-height: 0;
+  padding: 0 var(--sa-space-4) var(--sa-space-4);
+}
+
+.body {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* 一栏日程：上面滚动、底下钉一条声明。 */
+.column {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--sa-space-3);
+  min-height: 0;
+}
+
+.bodyWide {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--sa-space-4);
+}
+
+.schedule {
+  display: grid;
+  align-content: start;
+  gap: var(--sa-space-3);
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: var(--sa-space-1);
+}
+
+.daySection {
+  display: grid;
+  gap: var(--sa-space-1);
+}
+
+.detailEmpty {
+  display: grid;
+  place-items: center;
+  padding: var(--sa-space-6);
+  border: 1px dashed var(--sa-color-border);
+  border-radius: var(--sa-radius-lg);
+  color: var(--sa-color-text-secondary);
+  text-align: center;
+}

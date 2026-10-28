@@ -1,0 +1,31 @@
+.card {
+  display: grid;
+  gap: var(--sa-space-3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-4);
+  min-width: 0;
+}
+
+.route {
+  margin: 0;
+  font: var(--sa-text-display);
+  white-space: nowrap;
+}
+
+.meta {
+  font: var(--sa-text-title);
+  font-weight: 400;
+  color: var(--sa-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.spacer {
+  flex: 1;
+}

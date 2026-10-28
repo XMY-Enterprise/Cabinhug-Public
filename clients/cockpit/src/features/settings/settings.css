@@ -1,0 +1,478 @@
+/* 网关连接设置（ACR-004）。
+   车机/iPad 都是触屏：输入与按钮都按 44px 可点下限给。
+   配色与 HITL 弹层同一取向：用 token 不写死，深色主题下不能变成白卡。 */
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200; /* 高于跟车顶栏（92）与确认弹层：未连上网关时其他界面都不可用 */
+  display: grid;
+  place-items: center;
+  background: rgba(15, 27, 45, 0.45);
+  backdrop-filter: blur(calc(4 * var(--hud-unit)));
+}
+
+.settings-sheet {
+  width: min(92vw, calc(520 * var(--hud-unit)));
+  border-radius: calc(20 * var(--hud-unit));
+  padding: calc(26 * var(--hud-unit)) calc(28 * var(--hud-unit));
+  background: var(--hud-card-bg, #fff);
+  color: var(--hud-text, #1f3d63);
+  border: 1px solid var(--hud-card-border, #dde4ee);
+  box-shadow: 0 calc(18 * var(--hud-unit)) calc(48 * var(--hud-unit)) rgba(15, 27, 45, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: calc(14 * var(--hud-unit));
+}
+
+.settings-sheet h2 {
+  font: var(--hud-type-headline);
+  margin: 0;
+}
+
+.settings-hint {
+  font: var(--hud-type-caption);
+  margin: 0;
+  opacity: 0.82;
+}
+
+.settings-hint code {
+  font: var(--hud-type-caption);
+}
+
+/* env 压住保存值：这是一句必须醒目的声明 */
+.settings-warn {
+  font: var(--hud-type-caption);
+  margin: 0;
+  padding: calc(10 * var(--hud-unit)) calc(12 * var(--hud-unit));
+  border-radius: calc(10 * var(--hud-unit));
+  background: rgba(255, 176, 32, 0.16);
+  border: 1px solid rgba(214, 106, 0, 0.4);
+  color: #8a4b00;
+}
+
+.settings-sheet label,
+.cset-gateway label {
+  font: var(--hud-type-label);
+  letter-spacing: 0.04em;
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--hud-unit));
+}
+
+.settings-sheet input,
+.cset-gateway input {
+  font: var(--hud-type-input);
+  min-height: calc(44 * var(--hud-unit));
+  padding: calc(8 * var(--hud-unit)) calc(12 * var(--hud-unit));
+  border-radius: calc(10 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border, #c9d4e4);
+ /* iOS：<16px 的输入框聚焦时会被系统强制放大整页 */
+  background: var(--hud-card-bg, #fff);
+  color: inherit;
+}
+
+.settings-error {
+  font: var(--hud-type-caption);
+  margin: 0;
+  color: #c0392b;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: calc(10 * var(--hud-unit));
+  margin-top: calc(4 * var(--hud-unit));
+}
+
+.settings-actions button {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
+  min-height: calc(44 * var(--hud-unit));
+  padding: calc(10 * var(--hud-unit)) calc(20 * var(--hud-unit));
+  border-radius: 999px;
+  border: 1px solid var(--hud-card-border, #c9d4e4);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.settings-actions button.is-primary {
+  background: #f5a623;
+  border-color: #f5a623;
+  color: #fff;
+}
+
+.settings-actions button:disabled {
+  opacity: 0.6;
+}
+
+/* ============================================================
+ * 设置页：整页形态，与档案页同级。
+ *
+ * 主题 token 在本层自定义一套（同 `.cown--light` / `.cown--dark`），
+ * 不直接用 `--hud-*`：那一套是 HUD 舞台的（半透明卡片压在地图上），
+ * 而这里是一张实心的整页。`--hud-bg` 不存在，`var(--hud-bg, #f2f5fa)` 会让
+ * 深色主题下整页仍然是白的，而浅色主题下兜底值看起来完全正常。
+ *
+ * 触屏可点下限 48px（与档案页的 `.cown-pick` 同一口径，FL-06 驾驶态）。
+ * ============================================================ */
+.cset {
+  font: var(--hud-type-body);
+  position: fixed;
+  inset: 0;
+  z-index: 40; /* 低于 HITL(200) 与跟车顶栏(92)，高于 HUD 内容 */
+  display: flex;
+  flex-direction: column;
+  background: var(--cset-bg);
+  color: var(--cset-text);
+  overflow: hidden;
+}
+
+.cset--light {
+  --cset-bg: #f2f5fa;
+  --cset-card: rgba(255, 255, 255, 0.96);
+  --cset-edge: rgba(20, 40, 80, 0.07);
+  --cset-text: #1b2434;
+  --cset-dim: #6b7789;
+  --cset-chip: rgba(20, 40, 80, 0.05);
+  --cset-knob: rgba(20, 40, 80, 0.18);
+}
+
+.cset--dark {
+  --cset-bg: #0a1426;
+  --cset-card: rgba(255, 255, 255, 0.045);
+  --cset-edge: rgba(120, 170, 255, 0.16);
+  --cset-text: #e8eefb;
+  --cset-dim: #90a0bb;
+  --cset-chip: rgba(255, 255, 255, 0.07);
+  --cset-knob: rgba(255, 255, 255, 0.22);
+}
+
+.cset-head {
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--hud-unit));
+  padding: calc(20 * var(--hud-unit)) calc(28 * var(--hud-unit)) calc(12 * var(--hud-unit));
+  flex: 0 0 auto;
+}
+.cset-head h1 {
+  font: var(--hud-type-headline);
+  margin: 0;
+}
+/* 底部留出导航条的高度（它是 fixed 的，不留就会盖住最后一组）。 */
+.cset-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: calc(4 * var(--hud-unit)) calc(28 * var(--hud-unit)) calc(104 * var(--hud-unit));
+  display: flex;
+  flex-direction: column;
+  gap: calc(18 * var(--hud-unit));
+}
+
+.cset-group {
+  background: var(--cset-card);
+  border: 1px solid var(--cset-edge);
+  border-radius: calc(18 * var(--hud-unit));
+  padding: calc(18 * var(--hud-unit)) calc(20 * var(--hud-unit));
+  display: flex;
+  flex-direction: column;
+  gap: calc(12 * var(--hud-unit));
+}
+.cset-group h2 {
+  font: var(--hud-type-title);
+  margin: 0;
+}
+.cset-note {
+  font: var(--hud-type-body);
+  margin: 0;
+  color: var(--cset-dim);
+}
+
+/* 开关行：整行可点（车机上瞄准一个小滑块不现实）。 */
+.cset-toggle {
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--hud-unit));
+  min-height: calc(48 * var(--hud-unit));
+  padding: calc(12 * var(--hud-unit)) calc(14 * var(--hud-unit));
+  border-radius: calc(14 * var(--hud-unit));
+  border: 1px solid transparent;
+  background: var(--cset-chip);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cset-toggle__text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--hud-unit));
+}
+.cset-toggle__label {
+  font: var(--hud-type-title);
+}
+.cset-toggle__hint {
+  font: var(--hud-type-caption);
+  color: var(--cset-dim);
+}
+.cset-toggle__knob {
+  flex: 0 0 auto;
+  width: calc(56 * var(--hud-unit));
+  height: calc(32 * var(--hud-unit));
+  border-radius: 999px;
+  background: var(--cset-knob);
+  position: relative;
+  transition: background 0.15s ease;
+}
+.cset-toggle__knob::after {
+  content: "";
+  position: absolute;
+  top: calc(3 * var(--hud-unit));
+  left: calc(3 * var(--hud-unit));
+  width: calc(26 * var(--hud-unit));
+  height: calc(26 * var(--hud-unit));
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 calc(1 * var(--hud-unit)) calc(3 * var(--hud-unit)) rgba(15, 27, 45, 0.3);
+  transition: transform 0.15s ease;
+}
+.cset-toggle.is-on .cset-toggle__knob {
+  background: var(--hud-amber, #f5a623);
+}
+.cset-toggle.is-on .cset-toggle__knob::after {
+  transform: translateX(calc(24 * var(--hud-unit)));
+}
+
+/* 网关表单在整页里的容器：沿用弹层那套 label/input/按钮样式。 */
+.cset-gateway {
+  display: flex;
+  flex-direction: column;
+  gap: calc(14 * var(--hud-unit));
+}
+.cset-gateway input {
+  background: var(--cset-bg);
+  border-color: var(--cset-edge);
+  color: var(--cset-text);
+}
+
+/* ── 当前身份（F-56-04）── */
+.cset-identity {
+  font: var(--hud-type-body);
+  margin: 0 0 calc(6 * var(--hud-unit));
+}
+
+.cset-identity strong {
+  font: var(--hud-type-title);
+}
+
+.cset-identity-switch {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
+  margin: calc(10 * var(--hud-unit)) 0 calc(8 * var(--hud-unit));
+  padding: calc(12 * var(--hud-unit)) calc(22 * var(--hud-unit));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.18));
+  border-radius: calc(12 * var(--hud-unit));
+  background: var(--surface-raised, rgba(255, 255, 255, 0.08));
+  color: inherit;
+  cursor: pointer;
+}
+
+.cset-identity-switch:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 存不住登录状态必须醒目，不用灰色小字。 */
+.cset-warn {
+  font: var(--hud-type-caption);
+  margin: calc(8 * var(--hud-unit)) 0 0;
+  padding: calc(10 * var(--hud-unit)) calc(12 * var(--hud-unit));
+  border-radius: calc(10 * var(--hud-unit));
+  background: rgba(214, 158, 46, 0.16);
+  color: #f0c46a;
+}
+
+/* 开关下面那句解释为什么没打开。与普通 note 分开一个修饰类：
+   普通 note 是说明，这一句是一次失败，颜色必须能区分。 */
+.cset-note--error {
+  color: var(--danger, #ff6b6b);
+}
+
+/* ── 播报音量滑块 ──
+   触屏可点：轨道本身只有 6px，但整个 input 高 48px（thumb 32px + 上下留白），
+   手指按在轨道附近就能拖到。thumb 用 amber 与开关的"开"同色。
+   只写 -webkit-（Tauri 两端都是 WKWebView）与 -moz-（浏览器预览）。 */
+.cset-slider {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8 * var(--hud-unit));
+  padding: calc(12 * var(--hud-unit)) calc(14 * var(--hud-unit));
+  border-radius: calc(14 * var(--hud-unit));
+  background: var(--cset-chip);
+}
+.cset-slider.is-disabled {
+  opacity: 0.45;
+}
+.cset-slider__head,
+.cset-slider__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(16 * var(--hud-unit));
+}
+.cset-slider__label {
+  font: var(--hud-type-title);
+}
+.cset-slider__value {
+  font: var(--hud-type-metric);
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-amber, #f5a623);
+  min-width: 3.2em;
+  text-align: right;
+}
+.cset-slider__hint {
+  font: var(--hud-type-caption);
+  flex: 1 1 auto;
+  color: var(--cset-dim);
+}
+.cset-slider__preview {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
+  min-height: calc(44 * var(--hud-unit));
+  padding: calc(8 * var(--hud-unit)) calc(18 * var(--hud-unit));
+  border-radius: 999px;
+  border: 1px solid var(--cset-edge);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.cset-slider__preview:disabled {
+  cursor: default;
+}
+.cset-slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: calc(48 * var(--hud-unit));
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.cset-slider input[type="range"]:disabled {
+  cursor: default;
+}
+.cset-slider input[type="range"]::-webkit-slider-runnable-track {
+  height: calc(6 * var(--hud-unit));
+  border-radius: 999px;
+  background: var(--cset-knob);
+}
+.cset-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: calc(32 * var(--hud-unit));
+  height: calc(32 * var(--hud-unit));
+  margin-top: -calc(13 * var(--hud-unit)); /* (32 - 6) / 2：thumb 居中压在轨道上 */
+  border-radius: 50%;
+  border: none;
+  background: var(--hud-amber, #f5a623);
+  box-shadow: 0 calc(1 * var(--hud-unit)) calc(4 * var(--hud-unit)) rgba(15, 27, 45, 0.35);
+}
+.cset-slider input[type="range"]::-moz-range-track {
+  height: calc(6 * var(--hud-unit));
+  border-radius: 999px;
+  background: var(--cset-knob);
+}
+.cset-slider input[type="range"]::-moz-range-thumb {
+  width: calc(32 * var(--hud-unit));
+  height: calc(32 * var(--hud-unit));
+  border-radius: 50%;
+  border: none;
+  background: var(--hud-amber, #f5a623);
+  box-shadow: 0 calc(1 * var(--hud-unit)) calc(4 * var(--hud-unit)) rgba(15, 27, 45, 0.35);
+}
+
+/* 途中提醒的密度三档：与 .cset-toggle 同一块芯片底，三个单选按钮并排。 */
+.cset-choice {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8 * var(--hud-unit));
+  padding: calc(12 * var(--hud-unit)) calc(14 * var(--hud-unit));
+  border-radius: calc(14 * var(--hud-unit));
+  background: var(--cset-chip);
+}
+.cset-choice__label {
+  font: var(--hud-type-title);
+}
+.cset-choice__opts {
+  display: flex;
+  gap: calc(8 * var(--hud-unit));
+}
+.cset-choice__opt {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
+  flex: 1 1 0;
+  min-height: calc(48 * var(--hud-unit));
+  border-radius: calc(12 * var(--hud-unit));
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.cset-choice__opt.is-on {
+  background: var(--hud-amber, #f5a623);
+  color: #fff;
+}
+.cset-choice__hint {
+  font: var(--hud-type-caption);
+  margin: 0;
+  color: var(--cset-dim);
+}
+.cset-toggle--action { justify-content: flex-start; }
+
+/* ============================================================
+ * 新版 UI（定稿 `内部文档`）。
+ *
+ * 这一段只作用于视觉层：浅色主题的几个 token 取设计系统的值，放大卡片圆角、
+ * 开关与字号。分组、开关行与 DOM 结构不受影响。深色主题（`.cset--dark`）不变。
+ * ============================================================ */
+.cset--light {
+  /* 与 `design-system.md` 的 text/primary、text/secondary、surface/card、border/card 对齐。 */
+  --cset-bg: #eaf2fa;
+  --cset-card: #ffffff;
+  --cset-edge: rgba(163, 200, 232, 0.55);
+  --cset-text: #1f3d63;
+  --cset-dim: #6c8bb0;
+  --cset-chip: #f4f8fc;
+  --cset-knob: rgba(150, 190, 225, 0.5);
+}
+
+.cset--light .cset-group {
+  border-radius: calc(28 * var(--hud-unit));
+  padding: calc(24 * var(--hud-unit)) calc(26 * var(--hud-unit));
+  gap: calc(14 * var(--hud-unit));
+  box-shadow: 0 calc(18 * var(--hud-unit)) calc(48 * var(--hud-unit)) rgba(70, 120, 170, 0.10);
+}
+/* 样式系统中一个角色只有一个尺寸，所以 --light 这一支只取色，不改字号。 */
+.cset--light .cset-group h2 { }
+.cset--light .cset-head h1 { }
+.cset--light .cset-head { padding: calc(26 * var(--hud-unit)) calc(32 * var(--hud-unit)) calc(14 * var(--hud-unit)); }
+/* 新版车机的页签在顶栏，本页底部不为导航条留空。 */
+.cset--light .cset-body { padding: calc(4 * var(--hud-unit)) calc(32 * var(--hud-unit)) calc(40 * var(--hud-unit)); gap: calc(20 * var(--hud-unit)); }
+
+/* 开关行：更高的触达 + 更大的滑块（车机上这是最常按的一类控件）。 */
+.cset--light .cset-toggle {
+  min-height: calc(76 * var(--hud-unit));
+  padding: calc(16 * var(--hud-unit)) calc(20 * var(--hud-unit));
+  border-radius: calc(20 * var(--hud-unit));
+}
+.cset--light .cset-toggle__label { }
+.cset--light .cset-toggle__hint { }
+.cset--light .cset-toggle__knob { width: calc(68 * var(--hud-unit)); height: calc(38 * var(--hud-unit)); }
+.cset--light .cset-toggle__knob::after { top: calc(4 * var(--hud-unit)); left: calc(4 * var(--hud-unit)); width: calc(30 * var(--hud-unit)); height: calc(30 * var(--hud-unit)); }
+.cset--light .cset-toggle.is-on .cset-toggle__knob::after { transform: translateX(calc(30 * var(--hud-unit))); }
+/* 开着时给一点暖投影：一屏里开关是唯一的琥珀色，避免显得呆板。 */
+.cset--light .cset-toggle.is-on .cset-toggle__knob {
+  box-shadow: 0 calc(4 * var(--hud-unit)) calc(12 * var(--hud-unit)) rgba(245, 166, 35, 0.45);
+}

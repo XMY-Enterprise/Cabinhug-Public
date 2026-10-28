@@ -1,0 +1,68 @@
+/**
+ * 底部导航（F-01-06）。
+ *
+ * 四入口：HUD ⇄ 对话 ⇄ 档案 ⇄ 设置；HUD 默认选中（US-01 AC-01-1）。
+ * 车机热区与字号走 cockpit 主题 token（FL-06），组件不含硬编码色值。
+ *
+ * cockpit 与 mobile 共用这一个组件（`clients/mobile/src/app/index.tsx`）。
+ * 「设置」由 `showSettings` 显式打开，默认关：默认开的话，没有设置页的端
+ * 会出现一个点进去是空白的 tab。
+ *
+ * 手机端打开了它（定位的停用 / 开启、模糊或精确须在用户自己的屏上改）。
+ */
+
+export type NavView = "hud" | "dialog" | "profile" | "settings";
+
+export interface BottomNavProps {
+  active: NavView;
+  onSelect: (view: NavView) => void;
+  /** 档案/设置尚未落地时置为 true（占位不可点）。 */
+  profileDisabled?: boolean;
+  /**
+   * 显示第四项「设置」。默认 false，见文件头。
+   *
+   * 类型层不约束它：不传本 prop 的调用方的 `onSelect` 仍然接受 `"settings"`，
+   * 但那个值不会被产生。先有那一页，再打开这个开关；只加分支不打开开关，
+   * 那段分支就是死代码。
+   */
+  showSettings?: boolean;
+}
+
+/**
+ * 页签的取值集合与顺序，车机顶栏（`TopBar`）与手机底栏（本组件）共用这一份。
+ * 加一项只改这里，保证两端一致。
+ */
+export const NAV_ITEMS: ReadonlyArray<{ key: NavView; label: string }> = [
+  { key: "hud", label: "主页" },
+  { key: "dialog", label: "对话" },
+  { key: "profile", label: "档案" },
+  { key: "settings", label: "设置" },
+];
+
+export function BottomNav({
+  active,
+  onSelect,
+  profileDisabled = true,
+  showSettings = false,
+}: BottomNavProps) {
+  const items = showSettings ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.key !== "settings");
+  return (
+    <nav className="hud-bottom-nav" aria-label="主导航">
+      {items.map((item) => {
+        const disabled = item.key === "profile" && profileDisabled;
+        return (
+          <button
+            key={item.key}
+            type="button"
+            className={`hud-bottom-nav__item${active === item.key ? " is-active" : ""}`}
+            aria-current={active === item.key ? "page" : undefined}
+            disabled={disabled}
+            onClick={() => onSelect(item.key)}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}

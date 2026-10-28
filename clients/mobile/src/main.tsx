@@ -1,0 +1,136 @@
+// mobile — 手机端 WebView 入口（HUD 为默认视图）
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { invoke } from "@tauri-apps/api/core";
+import { configureAmap, configureLocationPort, configureNativeLocator, migrateLegacyLocalStorage } from "@cabinhug/ui";
+import "@cabinhug/ui/styles";
+import "./styles/app.css";
+
+/*
+ * 端标记（新版 UI）：`clients/shared/ui` 的对话页 / 导览页 / 变化弹层是两端共用的，
+ * 车机与手机各有一套新版式。所以新版样式一律写成 `[data-surface="mobile"] …`
+ * （车机那边是 `"cockpit"`，见它的 main.tsx），由这一行开闸。
+ */
+if (typeof document !== "undefined") document.documentElement.dataset.surface = "mobile";
+import { App } from "./app";
+import { resolveTheme, setRootTheme, systemPrefersDark, watchRootTheme } from "./app/theme";
+import { LoginGate } from "./features/auth";
+import { createTauriLocationPort } from "./bridge/locationPort";
+import { createTauriNativeLocator } from "./bridge/nativeLocator";
+
+/**
+ * 高德服务接口的代理地址（ACR-019）。
+ *
+ * 安全密钥不进产物：前端只告诉 SDK「服务接口去这里要」，密钥由网关的
+ * `/_AMapService/*` 追加（`enterprise/backend/gateway/src/http/amap-proxy.ts`）。
+ *
+ * 传函数而不是字符串，是因为 Tauri 下网关地址要经 `invoke` 异步取，
+ * 而本文件是同步执行的；`loadAmap()` 会在注入 script 前 await 它一次。
+ *
+ * 两条形态：
+ *   - Tauri：以端上设置里生效的网关地址为准（端上只认识网关，
+ *     用户在设置页配什么就走什么）。
+ *   - 浏览器预览：同源 `/_AMapService`，由 vite 的 proxy 转到本机网关。
+ *
+ * 拿不到就回 undefined：loader 照常加载地图，只是服务接口按未授权处理。
+ * 在这里抛异常会让整张地图不显示。
+ */
+async function amapServiceHost(): Promise<string | undefined> {
+  const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  if (!inTauri) return `${window.location.origin}/_AMapService`;
+  const view = await invoke<{ effectiveUrl: string }>("get_gateway_settings");
+  const base = view.effectiveUrl?.trim().replace(/\/+$/, "");
+  return base ? `${base}/_AMapService` : undefined;
+}
+
+// 高德 JS API key（同 cockpit）：clients/shared/ui 自己不读环境变量，
+// 它要能在 Vite 之外的环境里编译。没配 = 用程序化底图，与离线同一条路径。
+// 只有 jsKey 在产物里，安全密钥不在（同 cockpit）。
+// 旧 carlife.* 存储键拷到新键名（ACR-051），必须先于任何读取。
+migrateLegacyLocalStorage();
+
+configureAmap({
+  // 浏览器演示构建的 key 来自容器的 /config.js（运行时、no-store），原生构建没有这个全局量，走构建期常量。
+  // 不在容器启动时往编好的 JS 里换占位符：带哈希的产物是 immutable 永久缓存，内容变了文件名不变，
+  // 已缓存的浏览器会一直拿着空 key，地图不显示（ACR-049）。
+  jsKey: window.__CABINHUG_DEMO__?.amapJsKey || (import.meta.env.VITE_AMAP_JS_KEY ?? ""),
+  serviceHost: amapServiceHost,
+  // 与 cockpit 同一套：手机端复用 clients/shared/ui 的行程图层，插件清单必须跟着，
+  // 少了 AMap.Driving 会静默退回点到点直线。
+  // AMap.Geolocation 是定位的前置条件：它没随脚本加载时，
+  // 定位会静默退到浏览器 `navigator.geolocation`，在国内网络下成功率低得多，
+  // 且给的是 WGS-84，与这张底图不是同一个坐标系。
+  plugins: ["AMap.MoveAnimation", "AMap.Driving", "AMap.Geolocation"],
+});
+
+// 定位授权与地图视图接到 Rust（落盘在设备上）。不在 Tauri 里时返回 undefined，
+// `clients/shared/ui` 自动退回 localStorage 版端口，浏览器预览里开关同样生效。
+configureLocationPort(createTauriLocationPort());
+
+// 原生系统定位（tauri-plugin-geolocation）。这是唯一会弹系统授权框的路径：
+// WebView 里的 navigator.geolocation 在 Tauri 壳里恒定被 WebKit 拒掉
+// （wry 没实现 geolocation 授权回调），详见 bridge/nativeLocator.ts 文件头。
+// 不在 Tauri / 桌面端时返回 undefined，定位照旧走高德与浏览器两条路。
+configureNativeLocator(createTauriNativeLocator());
+
+/*
+ * 主题必须在渲染之前落到 <html> 上。
+ *
+ * `App` 里那份 effect 管不到登录门：它挂在 LoginGate 里面，登录页上不执行。
+ * 少了这一行，登录页就是「深色底 + color-scheme: light」，iOS 会照浅色画键盘
+ * 与输入辅助条，底部顶出一条浅蓝横带（详见 app/theme.ts 的 setRootTheme）。
+ *
+ * 第二行处理停在登录页时用户切系统深浅色：`App` 里那个 matchMedia 监听器
+ * 同样挂在登录门里面，那时还不存在。不取消订阅，它和 document 同寿。
+ */
+setRootTheme(document.documentElement, resolveTheme(window.location.search, systemPrefersDark()));
+watchRootTheme(document.documentElement, window.location.search);
+
+/*
+ * 视口指标上报（真机联调，只在容器里有 netdiag.on 时 Rust 侧才落盘）。
+ * 报的是「布局视口 vs 可视视口 vs 屏幕」三者的高度，以及底部导航离屏幕底边的距离，
+ * 用于分辨真机 HUD 底部露出 body 背景色时，是"WebView 本身矮"还是
+ * "键盘收起后 WebKit 没把布局视口还回来"。
+ */
+if ("__TAURI_INTERNALS__" in window) {
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;" +
+    "padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)";
+  document.body.appendChild(probe);
+  const report = (tag: string) => {
+    const vv = window.visualViewport;
+    const cs = getComputedStyle(probe);
+    const nav = document.querySelector(".hud-bottom-nav")?.getBoundingClientRect();
+    const root = document.getElementById("root")?.getBoundingClientRect();
+    const active = document.activeElement?.tagName ?? "-";
+    const line =
+      `${new Date().toISOString().slice(11, 19)} ${tag.padEnd(9)} ` +
+      `inner=${window.innerWidth}x${window.innerHeight} ` +
+      `vv=${vv ? `${Math.round(vv.width)}x${Math.round(vv.height)}@${Math.round(vv.offsetTop)}` : "-"} ` +
+      `screen=${window.screen.width}x${window.screen.height} ` +
+      `docEl=${document.documentElement.clientHeight} root=${root ? Math.round(root.height) : "-"} ` +
+      `safe=${cs.paddingTop}/${cs.paddingBottom} ` +
+      `navGap=${nav ? Math.round(window.innerHeight - nav.bottom) : "-"} ` +
+      `scrollY=${Math.round(window.scrollY)} active=${active}`;
+    void invoke("report_ui_metrics", { line }).catch(() => {});
+  };
+  report("load");
+  window.visualViewport?.addEventListener("resize", () => report("vv-resize"));
+  window.addEventListener("resize", () => report("resize"));
+  window.addEventListener("focusin", () => report("focusin"));
+  window.addEventListener("focusout", () => setTimeout(() => report("focusout"), 300));
+  for (const t of [1000, 3000, 8000, 20000]) setTimeout(() => report(`t+${t / 1000}s`), t);
+}
+
+const el = document.getElementById("root");
+if (!el) throw new Error("#root not found");
+createRoot(el).render(
+  <React.StrictMode>
+    {/* 未登录时整个应用无一处可用（网关全 401），所以挡在最外层，
+        避免 HUD 先渲染再逐个报错、看起来像服务故障。 */}
+    <LoginGate>
+      <App />
+    </LoginGate>
+  </React.StrictMode>,
+);

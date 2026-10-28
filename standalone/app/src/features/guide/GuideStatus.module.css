@@ -1,0 +1,81 @@
+.progress {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  grid-template-areas:
+    "icon label count rest"
+    "bar bar bar bar";
+  align-items: center;
+  column-gap: var(--sa-space-2);
+  row-gap: var(--sa-space-1);
+  padding: var(--sa-space-2) var(--sa-space-3);
+  border-radius: var(--sa-radius-sm);
+  background: var(--sa-color-ok-soft);
+  font: var(--sa-text-label);
+}
+
+.progress .icon {
+  grid-area: icon;
+  color: var(--sa-color-ok);
+}
+
+.label {
+  grid-area: label;
+  font-weight: 700;
+}
+
+.count {
+  grid-area: count;
+  color: var(--sa-color-ok);
+}
+
+.rest {
+  grid-area: rest;
+  justify-self: end;
+  color: var(--sa-color-text-secondary);
+}
+
+.bar {
+  grid-area: bar;
+  height: 4px;
+  border-radius: var(--sa-radius-pill);
+  background: var(--sa-color-surface);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sa-color-ok);
+  transition: width var(--sa-dur) var(--sa-ease);
+}
+
+.badge {
+  display: inline-flex;
+  margin-left: var(--sa-space-2);
+  vertical-align: middle;
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-3);
+  border: 1px solid var(--sa-color-border);
+}
+
+.action .icon {
+  color: var(--sa-color-brand);
+}
+
+.actionText {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font: var(--sa-text-body);
+}
+
+.hint {
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-secondary);
+}

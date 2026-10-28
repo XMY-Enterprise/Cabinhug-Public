@@ -1,0 +1,67 @@
+.services {
+  display: grid;
+  gap: var(--sa-space-2);
+}
+
+.cells {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sa-space-2);
+}
+
+.cell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "icon label"
+    "value value";
+  align-items: center;
+  column-gap: var(--sa-space-1);
+  padding: var(--sa-space-2);
+  border: 1px solid var(--sa-color-border);
+  border-radius: var(--sa-radius-sm);
+  background: var(--sa-color-surface);
+  color: var(--sa-color-text);
+  font: var(--sa-text-caption);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cell > :first-child {
+  grid-area: icon;
+  color: var(--sa-color-info);
+}
+
+.cell:hover:not(:disabled) {
+  background: var(--sa-color-surface-hover);
+}
+
+.cell:disabled {
+  cursor: default;
+}
+
+.value {
+  grid-area: value;
+  font: var(--sa-text-body-strong);
+}
+
+.on,
+.on:hover:not(:disabled) {
+  background: var(--sa-color-info-soft);
+  border-color: var(--sa-color-info-line);
+}
+
+.areas {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-1);
+  margin: 0;
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-secondary);
+}
+
+.pending {
+  margin: 0;
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-tertiary);
+}

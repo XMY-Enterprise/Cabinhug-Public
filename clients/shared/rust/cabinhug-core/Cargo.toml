@@ -1,0 +1,29 @@
+[package]
+name = "cabinhug-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ts-rs = { version = "12", features = ["serde-compat"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+thiserror = "2"
+
+# 端上凭证落操作系统凭证库（ACR-011）。
+#
+# 三个声明来自同一个上游项目（open-source-cooperative/keyring-rs），不是三处不同的供应链：
+# `keyring` 的默认 feature `v1` 内部依赖的就是后两个。这里直接声明它们，
+# 因为 v1 那层的自动装配不覆盖 iOS，见下。
+keyring = "4"
+keyring-core = "1"
+# iOS 上必须走 `protected`（数据保护钥匙串），macOS 上走 `keychain`。
+# keyring 的 v1 兼容层只装配 macOS/Windows/*nix，iOS 直接返回
+# `Error::Invalid("platform", …)`，而车机运行在 iPad 上（ACR-004）。
+# 因此按平台自行装配，见 src/auth.rs 的 `init_store`。
+#
+# 只在 Apple 平台声明：这个 crate 依赖 security-framework，后者在 Linux 上是空壳，
+# 编译时报 `unresolved import security_framework::*`。auth.rs 对它的引用只在
+# `target_os = "macos" / "ios"` 下编译，Linux CI（ubuntu runner 跑 check:all）不需要它。
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain", "protected"] }

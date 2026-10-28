@@ -1,0 +1,292 @@
+# Cabinhug 完整服务栈
+#
+# 一条命令拉起：PG + Redis（复用 infra 定义）+ agent-runtime + gateway
+# + 两个模拟系统（mock-dealer 门店 / mock-cabin 车机舒适域），以及按配置启用的
+# local-asr 旁车（llama.cpp + Qwen3-ASR，ACR-007）。
+# 车机端（Tauri 桌面应用）仍在宿主机运行，经 CABINHUG_GATEWAY_URL 连本栈网关。
+#
+#   docker compose -f infra/docker-compose.stack.yml up -d --build
+#   docker compose -f infra/docker-compose.stack.yml logs -f gateway
+#   docker compose -f infra/docker-compose.stack.yml down
+#
+# 密钥来自仓库根 .env（gitignore 覆盖）；网络相关变量在此显式覆盖——
+# 容器内互访用服务名（postgres/agent-runtime），不是宿主的 localhost:端口。
+
+# 项目名显式写死，理由见 infra/docker-compose.yml 顶部。按目录名派生的项目名容易与
+# 本机其它项目撞名，撞名后 `up` 会操作别人的容器，卷名前缀也随之改变。
+# 本文件和 docker-compose.yml 用同一个项目名，两份文件描述的是同一个栈。
+name: cabinhug
+
+include:
+  # 依赖组件的唯一定义处（架构 §10：infra/docker-compose.yml）
+  - path: docker-compose.yml
+
+services:
+  # ── 一次性：数据库迁移。gateway 依赖它跑完再启动
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile
+      target: migrate
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    environment:
+      DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ── 模拟系统（独立部署的"假第三方"）
+  #
+  # 两条共同约束：不依赖本栈任何组件（无 depends_on、无 env_file，它们不该拿到密钥）；
+  # 能被当场 stop 演示降级（关掉 mock-dealer，助手如实说"门店系统没连通"；
+  # 关掉 mock-cabin，同理说"车机没连上"）。
+  mock-dealer:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.mock
+      args:
+        SERVICE: dealer
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    # 固定容器名（同 infra/docker-compose.yml 的 cabinhug-postgres 一套惯例）：
+    # dev 脚本按名字查健康状态，mock 一律由容器承载。
+    container_name: cabinhug-mock-dealer
+    environment:
+      MOCK_DEALER_PORT: 8792
+    ports:
+      - "8792:8792"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8792/health | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  mock-cabin:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.mock
+      args:
+        SERVICE: cabin
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    container_name: cabinhug-mock-cabin
+    environment:
+      MOCK_CABIN_PORT: 8793
+      # 设置与变更流水落这里（persistence.ts）。挂 /app/var 而不是 /app/data：
+      # data/ 里是随镜像发布的种子（models.json），挂卷会把它盖掉。
+      CABIN_DATA_FILE: /app/var/mock-cabin-state.json
+    volumes:
+      - mock-cabin-var:/app/var
+      # 演示曲库从宿主挂进来，不进镜像。两个理由：
+      # ① 音频不入 git（media/.gitignore 排除，私有仓库也算分发），干净检出构建的
+      #    镜像里只有一首垫底曲，无法靠镜像分发曲库；
+      # ② 跑过 `demo:media` 的机器上曲库有 20 多 MB，不必每次重建都打进层里。
+      # 只读：mock 只扫不写（`media/library.ts` 全是读操作）。
+      - ../mocks/cabin/media:/app/media:ro
+    ports:
+      - "8793:8793"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8793/health | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # ── 4S 维修系统。与 mock-dealer 同一约束：假第三方、可当场 kill
+  # 演示降级（关掉它，助手如实说"维修系统没连通"）。
+  mock-repair:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.mock
+      args:
+        SERVICE: repair
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    container_name: cabinhug-mock-repair
+    environment:
+      MOCK_REPAIR_PORT: 8797
+    ports:
+      - "8797:8797"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8797/health | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # ── 保险系统。同上：假第三方、理赔预检确定性测算、可 kill 演示降级。
+  mock-insurance:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.mock
+      args:
+        SERVICE: insurance
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    container_name: cabinhug-mock-insurance
+    environment:
+      MOCK_INSURANCE_PORT: 8798
+    ports:
+      - "8798:8798"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8798/health | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # ── 指示灯检测的只推理服务（ACR-050）
+  #
+  # 观察层第一遍"框在哪"的线上去处：端上带了框的照片不经过它（ACR-045），
+  # 不带框的（网页演示版、关了端上框灯的原生端）由 runtime 经 VISION_TRAINER_URL 的 /predict 打到这里。
+  # 跑的是与端上编进二进制的同一份 ONNX；运行时是 MIT 的 onnxruntime。
+  # 它不是 vision-trainer：后者依赖 AGPL 的 ultralytics，只作不对外的内部工具。
+  #
+  # 无 env_file：它不需要任何密钥。无 ports：只有 runtime 会找它，服务自身没有鉴权，不该出现在宿主端口上。
+  vision-infer:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.vision-infer
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+    container_name: cabinhug-vision-infer
+    environment:
+      # 2 核的 ECS 上不让一次推理占满两个核：runtime 与网关也在这台机器上
+      VISION_INFER_THREADS: ${VISION_INFER_THREADS:-2}
+    expose:
+      - "8799"
+    # 实测常驻约 200 MB；1g 上限只让异常（而非正常波动）触发 OOM 重启，不拖垮同机的 postgres
+    mem_limit: 1g
+    healthcheck:
+      # python:slim 里没有 wget / curl
+      test: ["CMD", "python", "-c", "import json,urllib.request as u; assert json.load(u.urlopen('http://localhost:8799/health', timeout=3))['ok']"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
+  # ── Agent 运行时（LangGraph；内部服务，§3 规定网关是唯一对外入口）
+  agent-runtime:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile
+      target: agent-runtime
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    env_file:
+      - ../.env          # DEEPSEEK_API_KEY 等
+    environment:
+      AGENT_RUNTIME_PORT: 8791
+      DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+      REDIS_URL: redis://redis:6379
+      MEM0_DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+      # 容器内互访用服务名，覆盖 .env 里的 localhost（那是给宿主机跑服务用的）。
+      MOCK_DEALER_URL: http://mock-dealer:8792
+      MOCK_CABIN_URL: http://mock-cabin:8793
+      MOCK_REPAIR_URL: http://mock-repair:8797
+      MOCK_INSURANCE_URL: http://mock-insurance:8798
+      # 观察层的 YOLO 检测（ACR-050）。.env 里的 localhost:8799 是给宿主机上的 vision-trainer 用的，
+      # 在容器里指向容器自己，表现为 ECONNREFUSED、不带框的照片整图降级且不报错。
+      # 不设 depends_on：检测器不在时观察层换 describe 那一家定位，不挡 runtime 启动。
+      # 网关的同名变量是控制台「模型训练」页的代理，不指向这个只推理的服务，所以只在这里覆盖。
+      VISION_TRAINER_URL: http://vision-infer:8799
+      # 手册图标图片（ACR-025）。显式写路径，不用默认值：默认值由 index.ts 的位置往上数四层
+      # 反推 `<仓库根>/data/kb-src/icons`，文件挪位后挂载点会对不上，症状只是匹配降级为
+      # 「疑似」，不报错。
+      CABINHUG_ICON_IMAGES_ROOT: /app/data/kb-src/icons
+    volumes:
+      # 图标图片从宿主挂进来，不进镜像（同 mock-cabin 曲库的理由②）：
+      # 镜像的 src 阶段只 COPY contracts/ 与 enterprise/，不含 data/；
+      # data/ 整个目录在本机是 120 MB（备份 86M + 手册图 32M），只有 icons 这 1.8 MB 需要上服务器。
+      #
+      # 缺少挂载时不报错：成对核验不会发生（icon-images.ts 取不到图就返回 null），
+      # 匹配一律降级成「疑似」，每一条都带着"未能与手册完全对上"。
+      # 只读：观察层只读图片。
+      - ../data/kb-src/icons:/app/data/kb-src/icons:ro
+    expose:
+      - "8791"
+    depends_on:
+      # 与 dev.sh 相同的顺序（mock-dealer 排 runtime 前）在这里由 compose 保证：
+      # runtime 启动时会探活门店系统，mock 晚起会留一条误导性的告警。
+      mock-dealer:
+        condition: service_healthy
+      mock-cabin:
+        condition: service_healthy
+      mock-repair:
+        condition: service_healthy
+      mock-insurance:
+        condition: service_healthy
+    ports:
+      # 仅为本机排障暴露；生产部署应删掉这段（对外只留 gateway）
+      - "8791:8791"
+    healthcheck:
+      # 内部接口无 GET 路由，404 即证明进程在监听
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8791/ 2>&1 | grep -q . || wget -q -S -O /dev/null http://localhost:8791/ 2>&1 | grep -q 'HTTP/'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── 接入网关（唯一对外入口）
+  gateway:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile
+      target: gateway
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    env_file:
+      - ../.env          # ARK_API_KEY（ASR）等
+    environment:
+      GATEWAY_PORT: 8790
+      DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+      AGENT_RUNTIME_URL: http://agent-runtime:8791
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      # 容器内 local ASR 必须走 Compose DNS；宿主 Gateway 才使用 127.0.0.1:8795。
+      # ASR_ENGINE 非 mock 时该变量不会被 provider 使用。
+      LOCAL_ASR_URL: http://local-asr:8795/v1/audio/transcriptions
+      # 状态页需从容器探测宿主机的 mock-tts 与三个 Vite；业务上游仍用上面的
+      # Compose 服务名。宿主机开发 Gateway 不设置此项，继续使用 localhost。
+      CABINHUG_HOST_SERVICES_HOST: host.docker.internal
+      # Gateway 也在 Compose 网络内运行，所有模拟第三方必须走服务名；
+      # 根 .env 的 localhost 只适用于宿主机开发进程，不能直接继承进容器。
+      MOCK_DEALER_URL: http://mock-dealer:8792
+      MOCK_CABIN_URL: http://mock-cabin:8793
+      MOCK_REPAIR_URL: http://mock-repair:8797
+      MOCK_INSURANCE_URL: http://mock-insurance:8798
+    ports:
+      - "8790:8790"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      agent-runtime:
+        condition: service_started
+      # local-asr 本身带 profile。required=false 让 fake/Ark stack 在未启用 profile
+      # 时仍可启动；local 模式由 infra/scripts/_common.sh 自动加入该 profile。
+      local-asr:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8790/healthz | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+
+# 具名卷。PG/Redis 的卷在 infra/docker-compose.yml 里各自声明，这里只加模拟车机的：
+# 它是唯一一份"这辆演示车被设成什么样"的记录，容器重建不该把它一起清掉。
+# 真要从头开始：docker compose -f infra/docker-compose.stack.yml down -v
+volumes:
+  # 显式 name = 不带项目前缀，同 infra 的两个卷。
+  mock-cabin-var:
+    name: carlife-mock-cabin-var

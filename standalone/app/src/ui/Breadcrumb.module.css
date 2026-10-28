@@ -1,0 +1,48 @@
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-2);
+  min-width: 0;
+  font: var(--sa-text-label);
+  color: var(--sa-color-text-secondary);
+}
+
+.bar {
+  padding: var(--sa-space-2) var(--sa-space-3);
+  border-radius: var(--sa-radius-sm);
+  background: var(--sa-color-surface-inset);
+}
+
+.icon {
+  color: var(--sa-color-text-secondary);
+}
+
+.iconBtn,
+.link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--sa-color-text-secondary);
+  cursor: pointer;
+}
+
+.iconBtn:hover,
+.link:hover {
+  color: var(--sa-color-text);
+}
+
+.sep {
+  color: var(--sa-color-text-tertiary);
+}
+
+.item {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.current {
+  color: var(--sa-color-text);
+}

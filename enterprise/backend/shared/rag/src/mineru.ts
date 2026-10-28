@@ -1,0 +1,203 @@
+/**
+ * MinerU PDF 版面解析（FL-24 F-24-05）。
+ *
+ * # 用途：RAGFlow 的解析器解决不了多栏
+ *
+ * RAGFlow 云端唯一可用的解析器 DeepDOC 会把三栏排版（如迈锐宝用户手册）
+ * 按行横着串读，三列的半句交替出现：
+ *
+ *   本车集先进技术、安全性、环保及    ← 第 1 列
+ *   该信息可能会导致错误的操作。      ← 第 3 列
+ *   ·方向性数据，如左右前后，均以     ← 第 2 列
+ *   经济性于一体。                   ← 第 1 列（接第一行那句）
+ *
+ * 每一行本身都通顺、关键词也在，检索照样命中、照样给出处，
+ * 但拼起来语义错乱，且不报错。
+ *
+ * RAGFlow 的下拉框里有 MinerU 与 Docling，但云端未部署
+ * （报 `MinerU not found` / `Docling not found`），所以走官方 API。
+ *
+ * # 它不在检索链路上
+ *
+ * 只在"把 PDF 变成 markdown"这一步用一次，产物进 RAGFlow。
+ * 它失败不影响线上问答，只影响新增文档，因此失败时直接报错让人重试，不设降级路径。
+ */
+
+const API = "https://mineru.net/api/v4";
+
+export interface MineruConfig {
+  token: string;
+  /** 文档语言，影响 OCR 与断句。中文手册用 `ch`。 */
+  language?: string;
+  timeoutMs?: number;
+}
+
+export interface MineruJob {
+  /** 传给 MinerU 的文件名——回执按它匹配，必须唯一。 */
+  name: string;
+  bytes: Uint8Array;
+}
+
+export interface MineruResult {
+  name: string;
+  state: string;
+  /** 成功时的 markdown；失败为 undefined。 */
+  markdown?: string;
+  error?: string;
+}
+
+async function call<T>(cfg: MineruConfig, path: string, init?: RequestInit): Promise<T> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), cfg.timeoutMs ?? 60_000);
+  try {
+    const res = await fetch(`${API}${path}`, {
+      ...init,
+      headers: { authorization: `Bearer ${cfg.token}`, ...(init?.headers ?? {}) },
+      signal: ctrl.signal,
+    });
+    const body = (await res.json()) as { code?: number; msg?: string };
+    // 与 RAGFlow 相同：HTTP 200 不代表成功，业务码在 body 里。
+    // 只看 res.ok 会把"配额用尽""token 失效"变成空结果。
+    if (!res.ok || (body.code !== undefined && body.code !== 0)) {
+      throw new Error(`MinerU ${path} 失败（code=${body.code ?? res.status}）：${body.msg ?? ""}`);
+    }
+    return body as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 清掉 MinerU 产物里的排版噪声。
+ *
+ * 它把小字号标点识别成上下标：`本车集先进技术<sub>、</sub>安全性`。
+ * 这些标记进了 embedding 是噪声，也影响引用原文的可读性；它们不是错误内容，
+ * 所以剥掉标签保留文字。
+ *
+ * 图片引用一并去掉：只把文本喂给 RAGFlow，
+ * 留着 `![](images/xxx.jpg)` 会变成检索结果里的死链。
+ */
+/**
+ * 中日韩字符类：必须含标点（《》、。），不能只写 `[一-鿿]`。
+ * 只覆盖汉字时，"本 《用户手册》" 里 `本` 与 `《` 之间的空格去不掉，
+ * 而那是 MinerU 最常插空格的位置。
+ */
+const CJK = "\\u3000-\\u303F\\u4E00-\\u9FFF\\uFF00-\\uFFEF";
+
+/**
+ * 图占位（ACR-029）：`[[fig:<图片文件名前 16 位>]]` 独占一行。
+ * MinerU 的图片按内容 sha256 命名，前 16 位就是稳定的键：`kb:figures` 建的索引里同一张图用同一个键，
+ * 切片时占位被剥掉（有图注的换成一句「（图：…）」），RAGFlow 看不到它。
+ */
+export const FIGURE_PLACEHOLDER_RE = /^\[\[fig:([0-9a-f]{8,64})\]\]$/gm;
+export const figurePlaceholder = (imgPath: string): string => `[[fig:${imgPath.replace(/^.*\//, "").replace(/\.[a-z0-9]+$/i, "").slice(0, 16)}]]`;
+
+export interface CleanMineruOptions {
+  /**
+   * 图片引用怎么处理：`strip`（缺省，删掉）/ `placeholder`（换成 `[[fig:…]]` 占位）。
+   * 占位让 markdown 与图示索引能对上号；已经转好的旧 md 没有占位也照常工作。
+   */
+  figures?: "strip" | "placeholder";
+}
+
+export function cleanMineruMarkdown(md: string, opts: CleanMineruOptions = {}): string {
+  return md
+    .replace(/<\/?(sub|sup)>/g, "")
+    // 图片换成换行而不是删空：图片原本把上下文分开，
+    // 直接删掉会让"看图"和"说明"粘成原文没有的"看图说明"。
+    // 连带吃掉图片两侧的横向空白，否则会留下 "看图\n 说明" 这样的行首空格。
+    .replace(/[ \t]*!\[[^\]]*\]\(([^)]*)\)[ \t]*/g, (_m, path: string) => (opts.figures === "placeholder" && path.trim() ? `\n${figurePlaceholder(path.trim())}\n` : "\n"))
+    // MinerU 会在词内插空格（"用 户手册"）。只压缩中日韩字符之间的空格：
+    // 英文与数字之间的空格有意义，一律去掉会把 "Model 3" 变成 "Model3"，
+    // 影响车型限定检索的匹配。
+    .replace(new RegExp(`(?<=[${CJK}])[ \\t]+(?=[${CJK}])`, "g"), "")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * 批量转换。一次调用走完：申请上传地址 → 上传 → 轮询 → 取 markdown。
+ *
+ * `onProgress` 让调用方能显示进度：一本 192 页的手册要几分钟，
+ * 没有进度的等待与卡死无法区分。
+ */
+export async function convertPdfs(
+  cfg: MineruConfig,
+  jobs: readonly MineruJob[],
+  opts: {
+    pollMs?: number;
+    deadlineMs?: number;
+    onProgress?: (done: number, total: number, states: string) => void;
+  } = {},
+): Promise<MineruResult[]> {
+  if (jobs.length === 0) return [];
+
+  const batch = await call<{ data: { batch_id: string; file_urls: string[] } }>(
+    cfg,
+    "/file-urls/batch",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        language: cfg.language ?? "ch",
+        files: jobs.map((j) => ({ name: j.name, is_ocr: false })),
+      }),
+    },
+  );
+
+  const { batch_id: batchId, file_urls: urls } = batch.data;
+  if (urls.length !== jobs.length) {
+    throw new Error(`MinerU 返回 ${urls.length} 个上传地址，与 ${jobs.length} 个文件不符`);
+  }
+
+  // 预签名地址逐个对应：顺序错了会把 A 的内容传到 B 的位置，
+  // 而回执按文件名匹配，结果是名字对、内容错且不报错。
+  for (let i = 0; i < jobs.length; i += 1) {
+    const put = await fetch(urls[i], { method: "PUT", body: jobs[i].bytes as BodyInit });
+    if (!put.ok) throw new Error(`上传 ${jobs[i].name} 失败：HTTP ${put.status}`);
+  }
+
+  const deadline = Date.now() + (opts.deadlineMs ?? 30 * 60_000);
+  const pollMs = opts.pollMs ?? 10_000;
+
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    const res = await call<{
+      data: { extract_result: Array<{ file_name: string; state: string; err_msg?: string; full_zip_url?: string }> };
+    }>(cfg, `/extract-results/batch/${batchId}`);
+
+    const items = res.data.extract_result;
+    const settled = items.filter((r) => r.state === "done" || r.state === "failed");
+    opts.onProgress?.(settled.length, jobs.length, items.map((r) => `${r.file_name.slice(0, 12)}:${r.state}`).join(" "));
+    if (settled.length < jobs.length) continue;
+
+    return Promise.all(
+      items.map(async (r) => {
+        if (r.state !== "done" || !r.full_zip_url) {
+          return { name: r.file_name, state: r.state, error: r.err_msg || "未提供原因" };
+        }
+        return { name: r.file_name, state: r.state, zipUrl: r.full_zip_url } as MineruResult & { zipUrl: string };
+      }),
+    );
+  }
+
+  throw new Error("MinerU 超时未全部完成。**不要当成失败**——任务可能仍在跑，稍后用同一个 batch 再查");
+}
+
+/** 单独暴露：调用方拿到 zipUrl 后自己下载解压（Node 侧用 unzip，浏览器侧不需要）。 */
+export type MineruResultWithZip = MineruResult & { zipUrl?: string };
+
+/**
+ * 校验 zip 里 `*_content_list.json` 的形状（ACR-029）：一个块数组，每块至少有 type / bbox / page_idx。
+ * 形状不对直接抛：块表是图示索引的唯一输入，缺字段时继续跑只会得到零张图而不报错。
+ */
+export function parseContentList(json: string): Array<{ type: string; bbox: number[]; page_idx: number } & Record<string, unknown>> {
+  const data = JSON.parse(json) as unknown;
+  if (!Array.isArray(data)) throw new Error("content_list.json 不是数组");
+  data.forEach((b, i) => {
+    const ok = b && typeof b === "object" && typeof (b as { type?: unknown }).type === "string" && Array.isArray((b as { bbox?: unknown }).bbox) && typeof (b as { page_idx?: unknown }).page_idx === "number";
+    if (!ok) throw new Error(`content_list.json 第 ${i} 块缺 type / bbox / page_idx`);
+  });
+  return data as ReturnType<typeof parseContentList>;
+}

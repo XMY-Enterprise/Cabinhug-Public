@@ -1,0 +1,30 @@
+# 反代到网关的公共设置。两个 location（一般 /v1/ 与单独限流的发消息）都 include 它，
+# 避免两份配置各自漂移：SSE 那三行少一行，流式输出就会变成攒满后一次下发，
+# 且只在其中一条路径上出现。
+proxy_pass ${DEMO_UPSTREAM};
+proxy_http_version 1.1;
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+# 合成标准的 Authorization 发给网关，网关收到的仍是标准形态，无需改动。
+# 页面不能直接发 Authorization：平台把它连同 X-modelscope-* / X-studio-*
+# 保留给自己（官方文档），带着它的请求到不了这个容器，边缘直接回 403。
+# $cabinhug_auth 由 http{} 里的 map 合成：有头用头、没头用 cookie、都没有就是空串；
+# nginx 对空值的头直接不发，登录这类请求因此不受影响。
+proxy_set_header Authorization $cabinhug_auth;
+
+# 语音元数据：有头用头，没头用 ?ms= 合成（map 在 http-context.conf.template）。
+# 非语音请求两者都没有，值为空——nginx 对空值的头直接不发。
+proxy_set_header X-Audio-Meta $audio_meta;
+
+# SSE 的三件套，少一件流式输出都会变成攒满后一次下发：
+#   proxy_buffering off          不攒够一个 buffer 才下发
+#   chunked_transfer_encoding on 不等 Content-Length
+#   read_timeout 拉长            复合意图一轮可能两分钟不出字，默认 60s 会掐断流
+proxy_buffering off;
+proxy_cache off;
+chunked_transfer_encoding on;
+proxy_set_header Connection "";
+proxy_read_timeout 300s;
+proxy_send_timeout 300s;

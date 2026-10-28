@@ -1,0 +1,579 @@
+/*
+ * 手机端专属样式。
+ *
+ * HUD 与通用组件样式来自 `@cabinhug/ui/styles`；这里只放手机独有的三块：
+ * 全局布局、对话层的底部避让、HITL 确认弹窗。
+ *
+ * 颜色一律用 UI 包真实提供的 `--hud-*` token（见 themes/tokens.css）。
+ * 自造 token 名会静默回退到 fallback 值，切主题时这几块不跟着变。
+ */
+
+/* HUD 占满视口、无滚动条。它是 100% 高度链条的第一环，
+   缺了它 `.hud-viewport` 高度会塌成 0，界面上只剩底部导航。 */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--hud-map-base-2);
+}
+
+/* ── 对话层：样式在 @cabinhug/ui 的 dialog.css；
+      这里只留手机端的底部避让，见文件末尾 ── */
+
+/* ── HITL 确认：层级高于 HUD 与对话层 ─────────────────────── */
+
+.hitl-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #000a;
+  backdrop-filter: blur(3px);
+  /* 必须高于对话层(40)与底部导航：权限门挂起时用户可能在任意一层 */
+  z-index: 100;
+}
+.hitl-panel {
+  width: min(420px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 22px;
+  border-radius: var(--m-radius-modal);
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  color: var(--hud-text);
+  box-shadow: var(--hud-card-shadow);
+}
+.hitl-title { margin: 0 0 16px; font-size: var(--m-font-title); line-height: var(--m-lh-title); }
+.hitl-details { margin: 0; display: grid; gap: 9px; }
+.hitl-row { display: flex; gap: 12px; font-size: var(--m-font-body); }
+.hitl-row dt { flex: 0 0 92px; color: var(--hud-text-muted); }
+.hitl-row dd { margin: 0; flex: 1; }
+
+/* 外发信息用琥珀边框圈出来：它与上面的动作明细性质不同，视觉上必须分得开 */
+.hitl-disclosure {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--hud-amber);
+  border-radius: var(--hud-radius-card);
+}
+.hitl-disclosure h3 {
+  margin: 0 0 10px;
+  font-size: var(--m-font-body);
+  color: var(--hud-amber);
+}
+
+.hitl-actions {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.hitl-actions button {
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-card-border);
+  background: transparent;
+  color: inherit;
+  font-size: var(--m-font-title);
+}
+/* 确认是主按钮，但拒绝不做次要弱化：有后果的动作，两个选项平权 */
+.hitl-actions .is-primary {
+  background: var(--hud-amber);
+  border-color: var(--hud-amber);
+  color: var(--hud-badge-text);
+}
+.hitl-actions button:disabled { opacity: 0.55; }
+/* 告知态只有一个出口（「知道了」），横跨两列：这一屏不再是"要不要做" */
+.hitl-actions .hitl-actions__single { grid-column: 1 / -1; }
+/* resume 没被接住的告知：与外发信息同用琥珀，同属"你得知道"的一类 */
+.hitl-notice {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hud-amber) 14%, transparent);
+  color: var(--hud-text);
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
+}
+
+/* ── 手机端的底部避让 ─────────────────────────────────────── */
+
+/*
+ * 车况列按 `top` 定位（见 hud.css），这里不给 `.hud-energy` 设 `bottom`：
+ * 同特指度、排在后面的 `bottom` 会与 `top` 同时生效，把那一列拉成垂到导航的长条。
+ * 底部总预留由 hud.css 的 `--hud-portrait-nav` 表达，下面那条 `:has()` 也用它。
+ */
+
+/*
+ * 「景点导览采集」折叠条在场时，底部总预留要把它算进去。
+ * 它是条件渲染的，所以不能写死进 hud.css 的基准里，否则没有它时底部空一条。
+ * `:has()` 让这件事留在 CSS 里：多一层常驻条 → 竖屏尺度自动缩一点、下半屏那一摞自动抬一层，
+ * 不需要 JS 把"现在有没有这条"再喂回样式。
+ *
+ * 两个变量都要抬。竖屏尺度读 `--hud-portrait-nav`；左右分栏版式下半屏整摞
+ * （对话卡 / 车况条 / 两枚入口 / 暖暖）从 `--hud-portrait-card-bottom` 起算，
+ * 它走的是 `--hud-bottom-nav-clear` 这条链。只抬前者时常驻栏会压在车况条上，且不报错。
+ */
+@media (max-aspect-ratio: 85/100) {
+  :root:has(.mobile-guide-jobs) {
+    --hud-portrait-nav: calc(var(--hud-portrait-nav-bar) + var(--mobile-guide-jobs-clear));
+    --hud-portrait-card-bottom: calc(
+      var(--hud-bottom-nav-clear) + 16px + var(--mobile-guide-jobs-clear)
+    );
+  }
+}
+
+/*
+ * 对话层同理：要让开底部导航药丸（类名为 dlg-*，随 DialogScreen 在共享包里）。
+ *
+ * 一律用 `--hud-bottom-nav-clear`（药丸偏移 + 安全区 + 栏体高，定义在 hud.css），
+ * 不写手算常数，药丸位置变化时这里跟着变。
+ *
+ * 底部安全区已经在 clear 里，这里不能再加一次，否则输入框与导航栏之间会多出
+ * 一段重复的安全区留白。
+ */
+.dlg-list { padding-bottom: calc(var(--hud-bottom-nav-clear) + 12px); }
+/* 输入条在场时它就在列表下方接着，列表自己不必再替药丸留位，否则最后一条消息会浮起来。 */
+.dlg-main:has(.dlg-input) .dlg-list { padding-bottom: 8px; }
+.dlg-input {
+  margin-bottom: calc(var(--hud-bottom-nav-clear) + 4px);
+  padding-bottom: 10px;
+  background: var(--hud-map-base);
+}
+/* title 档正好是 16px：低于 16px 时 iOS 输入会把整页放大，这一档同时兜住那条下限 */
+.dlg-input input { font-size: var(--m-font-title); }
+/* 「有新消息」浮标要浮在输入框与导航之上 */
+.dlg-newmsg { bottom: calc(var(--hud-bottom-nav-clear) + 84px); }
+
+/* ── 导览采集进度折叠节：贴底部导航上方，展开在节内滚动 ── */
+/*
+ * 这一条在场时占掉的高度：44 的热区 + 上下各 1 的描边 + 与上一层之间留 8。
+ * 上面那条 `:has()` 拿它把整摞抬起来，这里拿它定自己的落点；两处共用同一个数，
+ * 保证抬起的量与实际占位一致。
+ */
+:root { --mobile-guide-jobs-clear: 54px; }
+
+.mobile-guide-jobs {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* 贴在导航药丸正上方：`--hud-bottom-nav-clear` 就是"让开药丸"的那一个数
+     （药丸高 + 4 + 安全区，定义在 hud.css，bottom-nav-clear.test.ts 守）。
+     不用固定值：导航自己要让开 home indicator，固定值会被药丸压住。
+     也不用 `--hud-portrait-nav-bar + safe-area`：那是竖屏尺度的分母预留（90），
+     比药丸实际占位高 20pt，会让这一条落在车况条上。 */
+  bottom: calc(var(--hud-bottom-nav-clear) + 4px);
+  z-index: 40;
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.mobile-guide-jobs > summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-bold);
+  color: var(--hud-text);
+  font-family: var(--font-ui, sans-serif);
+}
+.mobile-guide-jobs > summary::-webkit-details-marker { display: none; }
+.mobile-guide-jobs > summary::after {
+  content: "▾";
+  margin-left: auto;
+  color: var(--hud-text-muted);
+}
+.mobile-guide-jobs[open] > summary::after { content: "▴"; }
+.mobile-guide-jobs > .guide-jobs {
+  border: none;
+  border-radius: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+/* ── 真实地图行程模式的竖屏落点 ──────────────────────────
+ * hud.css 里 .hud-navbar / .hud-lodging / .hud-daytabs 只写了横屏坐标（三者都顶在 top:14px），
+ * 375 宽的屏放不下并排：跟车顶栏占顶行，住宿横幅落到它下面并放宽到整屏。
+ * 只在竖屏档位生效，不影响车机横屏。 */
+.hud-viewport[data-mode="portrait"] .hud-navbar {
+  top: calc(12px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  transform: none;
+  max-width: none;
+  padding-left: 14px;
+  /* 横屏那条胶囊靠内容撑宽；竖屏撑满一行后要让「下一站 · 准备中」保持一行、按钮靠右 */
+  flex-wrap: nowrap;
+}
+.hud-viewport[data-mode="portrait"] .hud-navbar__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.hud-viewport[data-mode="portrait"] .hud-navbar__label,
+.hud-viewport[data-mode="portrait"] .hud-navbar__next,
+.hud-viewport[data-mode="portrait"] .hud-navbar__metric,
+.hud-viewport[data-mode="portrait"] .hud-navbar__end { white-space: nowrap; }
+/*
+ * 住宿横幅与日期条落在跟车顶栏那一行下面（64px 是顶栏那一条的高）；
+ * 顶部没有别的常驻卡。
+ */
+.hud-viewport[data-mode="portrait"] .hud-lodging,
+.hud-viewport[data-mode="portrait"] .hud-daytabs {
+  top: calc(76px + env(safe-area-inset-top));
+}
+.hud-viewport[data-mode="portrait"] .hud-lodging {
+  left: 12px;
+  right: 12px;
+  max-width: none;
+}
+
+/* ── 「开始行程」入口与出发卡（对齐车机出发卡）──────────────── */
+/*
+ * 两枚入口的一行：「我的行程」在左、「开始行程」在右，居中并排，
+ * 落在车况条上面一层（落点链见 hud.css 竖屏 :root 那段注释）。
+ */
+.hud-viewport[data-mode="portrait"] .hud-home-actions {
+  position: absolute;
+  z-index: 45; /* 高于助手与定位按钮(40)，低于底部导航(60) */
+  /* 这一行在右栏（3/4），与它正下方的车况条同宽同边界。 */
+  left: var(--hud-portrait-right-x);
+  right: var(--hud-portrait-gutter);
+  top: auto;
+  bottom: var(--hud-portrait-actions-bottom);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none; /* 行本身只是个定位框，别把地图的拖动吃掉 */
+}
+.hud-viewport[data-mode="portrait"] .hud-home-actions > * { pointer-events: auto; }
+
+/* 「我的行程」：次要入口，白底琥珀描边；一屏只留一个实心橙（右边的「开始行程」）。 */
+.hud-viewport[data-mode="portrait"] .hud-trips-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--hud-portrait-actions-h);
+  padding: 0 14px;
+  border: 1px solid var(--hud-amber);
+  border-radius: 999px;
+  background: var(--hud-card-bg);
+  color: var(--hud-text);
+  font-family: var(--font-ui, sans-serif);
+  /* 走 body 而不是 title：右栏里这两个胶囊并排，往上抬一档就顶到 12pt 的留白。 */
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-bold);
+  box-shadow: 0 6px 18px rgba(70, 120, 170, 0.16);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+.hud-viewport[data-mode="portrait"] .hud-trips-entry svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--hud-amber);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+/* 程数：琥珀底片 + 深色字。红色纪律里红不给计数角标。 */
+.hud-viewport[data-mode="portrait"] .hud-trips-entry__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--hud-amber);
+  color: var(--hud-text);
+  font-size: var(--m-font-caption);
+  font-style: normal;
+  font-weight: var(--m-weight-bold);
+  line-height: 1;
+}
+
+.hud-viewport[data-mode="portrait"] .hud-depart-entry {
+  /* 进了 `.hud-home-actions` 这一行之后它不再自己定位，由那一行排。 */
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--hud-portrait-actions-h); /* 触屏热区下限，与那一行的高同源 */
+  padding: 0 16px 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #ffba54, #ff9b3d);
+  color: #35240a;
+  font-family: var(--font-ui, sans-serif);
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-bold);
+  letter-spacing: 0.04em;
+  box-shadow: 0 10px 26px rgba(255, 168, 61, 0.32);
+  cursor: pointer;
+}
+.hud-viewport[data-mode="portrait"] .hud-depart-entry svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hud-viewport[data-mode="portrait"] .hud-depart-entry:active {
+  transform: translateY(1px);
+  box-shadow: 0 6px 16px rgba(255, 168, 61, 0.28);
+}
+
+/* 出发卡的手机落位：共享 css 默认把卡摆在舞台正中（车机动画收尾滑入）；
+   手机上改成从底部升起的 sheet，单手够得着「开始导航」，长方案区在卡内滚。 */
+.mobile-depart {
+  position: fixed;
+  inset: 0;
+  /* 高于导览条(40)、底部导航(60)与导览全屏页；低于 HITL 确认(100)，权限门挂起时确认弹窗在最上 */
+  z-index: 90;
+}
+.mobile-depart__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: #000a;
+  backdrop-filter: blur(3px);
+}
+.mobile-depart .cabin-depart-card {
+  left: 12px;
+  right: 12px;
+  top: auto;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  width: auto;
+  max-height: calc(100vh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transform: none;
+  animation: mobile-depart-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.04) both;
+}
+@keyframes mobile-depart-in {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-depart .cabin-depart-card { animation: none; }
+}
+
+/* ── 行程抽屉：竖屏主页只放得下紧凑周日历卡，清单与翻页在这里 ────────────
+   与出发卡同形态（fixed、贴底升起、z 90：高于导览条(40)与底部导航(60)，低于 HITL 确认(100)
+   与变化摘要弹层(200)）。抽屉不在 `.hud-viewport` 内，hud.css 竖屏段给紧凑卡的落位不作用于它；
+   `--hud-unit` 在竖屏媒体查询里已是 `--hud-portrait-unit`（≈ 1px @390），卡片字号与车机相当。 */
+.mobile-trips {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+.mobile-trips__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: #000a;
+  backdrop-filter: blur(3px);
+}
+.mobile-trips__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 48px - env(safe-area-inset-top));
+  padding: 6px 12px calc(12px + env(safe-area-inset-bottom));
+  border: 1px solid var(--hud-card-border);
+  border-bottom: none;
+  border-radius: var(--m-radius-sheet) var(--m-radius-sheet) 0 0;
+  background: var(--hud-card-bg);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--hud-card-shadow);
+  color: var(--hud-text);
+  animation: mobile-depart-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.04) both;
+}
+.mobile-trips__grip {
+  width: 44px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: var(--hud-divider);
+}
+/* 抽屉里的那份是完整卡：脱离绝对定位，宽随抽屉、高随内容，长清单在卡内滚。 */
+.mobile-trips__panel .hud-trips.hud-trips--calendar {
+  position: static;
+  width: auto;
+  height: auto;
+  max-height: calc(100vh - 140px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  padding: 10px 12px 12px;
+  box-shadow: none;
+  border: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+/*
+ * 抽屉里的完整卡与车机对齐。车机的清单行样式写在横屏块里，手机这份用不到：
+ * - 头部折成两行：标题 + 角标一行，换周控件（‹ 范围 本周 ›）整行居中，440pt 放不下一行；
+ * - 清单行：同色淡底 + 左缘一道色条，与周条上那一根胶囊对应，标明"这根线是谁"。
+ */
+.mobile-trips__panel .hud-trips__head { flex-wrap: wrap; row-gap: 8px; }
+.mobile-trips__panel .hud-week__toolbar {
+  flex: 1 0 100%;
+  margin-left: 0;
+  justify-content: center;
+}
+.mobile-trips__panel .hud-trips__row {
+  position: relative;
+  padding: 8px 10px 8px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--trip-color, var(--hud-pin)) 7%, transparent);
+  overflow: hidden;
+}
+.mobile-trips__panel .hud-trips__row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 3px 3px 0;
+  background: var(--trip-color, var(--hud-amber));
+}
+.mobile-trips__panel .hud-trips__row.is-selected {
+  background: color-mix(in srgb, var(--trip-color, var(--hud-amber)) 16%, transparent);
+}
+.mobile-trips__close {
+  min-height: 44px;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--hud-text);
+  font-family: var(--font-ui, sans-serif);
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-medium);
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-trips__panel { animation: none; }
+}
+
+/* ============================================================
+ * 新版 UI（定稿 `内部文档`）。
+ * 三块手机独有的浮层对齐设计系统：确认弹窗、出发卡、行程抽屉。
+ * 只覆盖视觉层，不改 DOM 与层级（z-index）。
+ * ============================================================ */
+
+/* ── 确认弹窗（HITL）：定稿 confirm-dialog-v1.png ──────────────
+ *  1. 外发信息块用浅底嵌条 + 小标题，不用琥珀描边：描边像警告，
+ *     而这一段是"这些会被发出去"，要读起来像一份清单。
+ *  2. 两个出口平权：拒绝是描边深蓝、确认是实心琥珀，同宽同高，
+ *     因为这是一个有后果的动作。 */
+.hitl-panel {
+  padding: 24px 20px 20px;
+  border-radius: var(--m-radius-modal);
+  background: var(--m-card-bg);
+  box-shadow: 0 24px 60px rgba(20, 40, 80, 0.28);
+}
+.hitl-title { font-size: var(--m-font-title); font-weight: var(--m-weight-bold); text-align: center; margin-bottom: 18px; }
+.hitl-details { gap: 12px; }
+.hitl-row { font-size: var(--m-font-body); }
+.hitl-row dt { flex: 0 0 88px; }
+.hitl-row dd { text-align: right; font-weight: 700; }
+.hitl-disclosure {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 18px;
+  background: var(--m-inset-bg);
+}
+.hitl-disclosure h3 { margin: 0 0 10px; font-size: var(--m-font-body); font-weight: var(--m-weight-bold); color: var(--hud-text); }
+.hitl-actions button {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 16px;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
+}
+.hitl-actions button:not(.is-primary) {
+  border: 1px solid var(--hud-text);
+  background: transparent;
+  color: var(--hud-text);
+}
+.hitl-actions .is-primary {
+  border: none;
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(255, 190, 90, 0.45);
+}
+
+/* ── 出发卡：定稿 departure-sheet-v1.png ───────────────────────
+ * 手机端用白色 sheet（车机端那张卡是深色的；手机端这一层贴着底，
+ * 与其它 sheet 同一套白卡语言）。`cabin-depart-card` 的排版不动，
+ * 但它整套取色是按深蓝底调的（浅蓝字 #cfe4ff / #dcecff / #93b1d4、深蓝底片），
+ * 放到白底上读不出来，所以下面逐支覆盖用到的颜色。
+ * 这一段限定在 `.mobile-depart` 之内，不影响车机端。 */
+.mobile-depart .cabin-depart-card {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: var(--m-radius-sheet) var(--m-radius-sheet) 0 0;
+  background: var(--m-card-bg);
+  border: 1px solid var(--hud-card-border);
+  border-bottom: none;
+  color: var(--hud-text);
+  box-shadow: 0 -10px 40px rgba(20, 40, 80, 0.22);
+  max-height: calc(100vh - 36px - env(safe-area-inset-top));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+/* ── 行程抽屉：定稿 trips-drawer-v1.png ── */
+.mobile-trips__panel {
+  border-radius: var(--m-radius-sheet) var(--m-radius-sheet) 0 0;
+  background: var(--m-card-bg);
+  box-shadow: 0 -10px 40px rgba(20, 40, 80, 0.22);
+}
+.mobile-trips__close {
+  border-radius: 16px;
+  border-color: var(--hud-card-border);
+  color: var(--hud-text-muted);
+  font-size: var(--m-font-title);
+}
+
+/* 出发卡在白底上的取色（逐支改，理由见上面那段注释）。 */
+.mobile-depart .cabin-depart-card__kicker { color: var(--hud-text-muted); letter-spacing: 0.24em; }
+.mobile-depart .cabin-depart-card h2 { color: var(--hud-text); }
+.mobile-depart .cabin-depart-card__stops li {
+  background: var(--m-inset-bg);
+  color: var(--hud-text);
+}
+.mobile-depart .cabin-depart-card__energy { color: #b8730f; }
+/* 次级出口：描边深蓝的胶囊；浅蓝字 + 浅蓝描边在白底上几乎看不见。 */
+.mobile-depart .cabin-depart-card__ghost {
+  border-color: var(--hud-card-border);
+  color: var(--hud-text);
+  font-weight: var(--m-weight-bold);
+}
+.mobile-depart .cabin-depart-card__hint,
+.mobile-depart .cabin-depart-card__plan-stops-none { color: var(--hud-text-muted); }
+.mobile-depart .cabin-depart-card__plan { background: var(--m-inset-bg); }
+.mobile-depart .cabin-depart-card__plan-strategy { color: var(--hud-pin); }
+.mobile-depart .cabin-depart-card__plan-stops li { color: var(--hud-text); }
+.mobile-depart .cabin-depart-card__plan-stops::-webkit-scrollbar-thumb {
+  background: var(--hud-divider);
+}

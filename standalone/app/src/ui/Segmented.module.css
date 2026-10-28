@@ -1,0 +1,78 @@
+.group {
+  display: flex;
+  min-width: 0;
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sa-space-1);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--sa-color-text);
+  font: var(--sa-text-label);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--sa-dur-fast) var(--sa-ease),
+    color var(--sa-dur-fast) var(--sa-ease);
+}
+
+/* ── switch：衬底槽 + 小开关 ── */
+.switch {
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--sa-radius-pill);
+  background: var(--sa-color-surface-inset);
+  border: 1px solid var(--sa-color-border);
+}
+
+.switch .option {
+  height: 26px;
+  min-width: 44px;
+  padding: 0 var(--sa-space-3);
+  border-radius: var(--sa-radius-pill);
+}
+
+.switch .option:hover:not(.on) {
+  background: var(--sa-color-surface);
+}
+
+/* ── tabs：分开的描边页签 ── */
+.tabs {
+  gap: var(--sa-space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs .option {
+  height: var(--sa-control-sm);
+  padding: 0 var(--sa-space-4);
+  border-color: var(--sa-color-border);
+  border-radius: var(--sa-radius-xs);
+  background: var(--sa-color-surface);
+}
+
+.tabs .option:hover:not(.on) {
+  background: var(--sa-color-surface-hover);
+}
+
+.stretch .option {
+  flex: 1 1 0;
+  padding: 0 var(--sa-space-2);
+}
+
+/* ── 选中 ── */
+.on.solid {
+  background: var(--sa-gradient-brand);
+  border-color: transparent;
+  color: var(--sa-color-text-inverse);
+  box-shadow: var(--sa-shadow-brand);
+}
+
+.on.soft {
+  background: var(--sa-color-brand-soft);
+  border-color: var(--sa-color-brand-line);
+  color: var(--sa-color-brand-strong);
+}

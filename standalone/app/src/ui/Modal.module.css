@@ -1,0 +1,54 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--sa-z-modal);
+  display: grid;
+  place-items: center;
+  background: var(--sa-color-scrim);
+  backdrop-filter: blur(6px);
+}
+
+.dialog {
+  width: min(720px, 92vw);
+  max-height: 86vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: var(--sa-color-surface);
+  border-radius: var(--sa-radius-lg);
+  box-shadow: var(--sa-shadow-float);
+  overflow: hidden;
+}
+
+.wide {
+  width: min(960px, 94vw);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sa-space-4) var(--sa-space-4) var(--sa-space-2) var(--sa-space-6);
+}
+
+.title {
+  margin: 0;
+  font: var(--sa-text-headline);
+}
+
+.body {
+  display: grid;
+  /* 行高按内容定、由 body 自己滚：auto 行在内容超高时会把带 overflow 的子项（页签条）压成 0 高。 */
+  grid-auto-rows: max-content;
+  gap: var(--sa-space-3);
+  padding: var(--sa-space-2) var(--sa-space-6) var(--sa-space-4);
+  overflow-y: auto;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sa-space-3);
+  padding: var(--sa-space-4) var(--sa-space-6);
+  border-top: 1px solid var(--sa-color-divider);
+}

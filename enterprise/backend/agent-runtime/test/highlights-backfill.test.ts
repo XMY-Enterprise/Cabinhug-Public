@@ -1,0 +1,220 @@
+/**
+ * 目的地推荐的确认后补算与回写。
+ *
+ * 守三件事：
+ *  1. 确认/变更之后，推荐写进库，不只存在于读时计算的结果里；
+ *  2. 改了目的地，旧推荐立刻清掉：错的推荐比暂时没有推荐糟；
+ *  3. 补算期间行程又被改了，这次的结果整个丢弃，不覆盖用户刚改的东西。
+ */
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+import type { DestinationHighlights, TripPlanSnapshot } from "@cabinhug/shared";
+
+import {
+  carryOverHighlights,
+  createHighlightsBackfill,
+  type HighlightsPlanStore,
+} from "../src/graph/highlights";
+
+const TODAY = "2026-08-29";
+
+function plan(over: Partial<TripPlanSnapshot> = {}): TripPlanSnapshot {
+  return {
+    status: "confirmed",
+    destination: "舟山普陀山",
+    startDate: TODAY,
+    days: 2,
+    skeleton: [
+      { day: 1, theme: "上岛", spots: [{ name: "普济寺" }] },
+      { day: 2, theme: "环岛", spots: [{ name: "千步沙" }] },
+    ],
+    caveats: [],
+    updatedTurnId: "t1",
+    ...over,
+  } as TripPlanSnapshot;
+}
+
+function highlights(destination: string): DestinationHighlights {
+  return {
+    destination,
+    foods: [{ name: "海鲜面", note: "码头边的老店" }],
+    spots: [{ name: "南海观音", note: "地标" }],
+    photoTips: [{ spot: "南海观音", tip: "傍晚斜阳" }],
+    computedAt: "2026-08-29T02:00:00.000Z",
+  };
+}
+
+/**
+ * 只记写入的假仓储。按 planId 存多份：补算写回前读的是"这一行"而不是"当前行程"，
+ * 只放一份就覆盖不到"改的不是最新那一程"的情形。
+ * `set` 可在补算途中换掉某一行，用来演"算着算着行程变了"；给 null 表示那一行被取消了。
+ */
+function fakeStore(current: { planId: string; sessionId: string; plan: TripPlanSnapshot } | null) {
+  const first = current;
+  const rows = new Map<string, { planId: string; sessionId: string; plan: TripPlanSnapshot }>();
+  if (current) rows.set(current.planId, current);
+  const writes: TripPlanSnapshot[] = [];
+  const store: HighlightsPlanStore & {
+    writes: TripPlanSnapshot[];
+    set: (v: typeof current) => void;
+  } = {
+    writes,
+    set: (v) => {
+      if (v) rows.set(v.planId, v);
+      else if (first) rows.delete(first.planId);
+    },
+    async confirmedById(_userId, planId) {
+      return rows.get(planId) ?? null;
+    },
+    async update(_userId, _planId, _sessionId, p) {
+      writes.push(p);
+      return p;
+    },
+  };
+  return store;
+}
+
+test("确认之后推荐进库", async () => {
+  const store = fakeStore({ planId: "p1", sessionId: "s1", plan: plan() });
+  const backfill = createHighlightsBackfill(store, {
+    collect: async () => highlights("舟山普陀山"),
+    today: () => TODAY,
+  });
+
+  backfill.schedule({ userId: "u1", planId: "p1", sessionId: "s1", plan: plan() });
+  await backfill.idle();
+
+  assert.equal(store.writes.length, 1);
+  assert.equal(store.writes[0].destinationHighlights?.destination, "舟山普陀山");
+});
+
+test("已结束的行程不补算：它不上卡片，不值得一次联网搜索", async () => {
+  const store = fakeStore({ planId: "p1", sessionId: "s1", plan: plan() });
+  let called = 0;
+  const backfill = createHighlightsBackfill(store, {
+    collect: async () => {
+      called += 1;
+      return highlights("舟山普陀山");
+    },
+    today: () => "2026-09-30",
+  });
+
+  backfill.schedule({ userId: "u1", planId: "p1", sessionId: "s1", plan: plan() });
+  await backfill.idle();
+
+  assert.equal(called, 0);
+  assert.equal(store.writes.length, 0);
+});
+
+test("改的不是最新那一程，推荐照样写得回去", async () => {
+  /*
+   * 写回前按 `planId` 读那一行，而不是读 `currentForUser`（= 最新一条 confirmed）：
+   * 车主能从列表里载入并变更任何一程，而 `update` 不改 `committedAt`，
+   * 被改的那一程不会成为最新一条。与 `route-services.ts` 同理。
+   * 这里让库里同时挂着另一程。
+   */
+  const store = fakeStore({ planId: "p-older", sessionId: "s1", plan: plan() });
+  store.set({ planId: "p-newer", sessionId: "s2", plan: plan({ destination: "杭州西湖" }) });
+  const backfill = createHighlightsBackfill(store, {
+    collect: async () => highlights("舟山普陀山"),
+    today: () => TODAY,
+  });
+
+  backfill.schedule({ userId: "u1", planId: "p-older", sessionId: "s1", plan: plan() });
+  await backfill.idle();
+
+  assert.equal(store.writes.length, 1, "改的不是最新那一程，也要写得回去");
+  assert.equal(store.writes[0].destinationHighlights?.destination, "舟山普陀山");
+});
+
+test("那一行期间被取消了就不写回——取消掉的行程不该再被补算改写", async () => {
+  const store = fakeStore({ planId: "p1", sessionId: "s1", plan: plan() });
+  const backfill = createHighlightsBackfill(store, {
+    collect: async () => {
+      store.set(null); // 搜的这十几秒里车主把这一程取消了
+      return highlights("舟山普陀山");
+    },
+    today: () => TODAY,
+  });
+
+  backfill.schedule({ userId: "u1", planId: "p1", sessionId: "s1", plan: plan() });
+  await backfill.idle();
+
+  assert.equal(store.writes.length, 0);
+});
+
+test("算的途中改了目的地：这次的结果整个丢弃，不覆盖用户刚改的行程", async () => {
+  const store = fakeStore({ planId: "p1", sessionId: "s1", plan: plan() });
+  const backfill = createHighlightsBackfill(store, {
+    collect: async () => {
+      // 搜索还在跑的时候，用户把目的地改成了杭州
+      store.set({ planId: "p1", sessionId: "s1", plan: plan({ destination: "杭州西湖" }) });
+      return highlights("舟山普陀山");
+    },
+    today: () => TODAY,
+  });
+
+  backfill.schedule({ userId: "u1", planId: "p1", sessionId: "s1", plan: plan() });
+  await backfill.idle();
+
+  assert.equal(store.writes.length, 0, "普陀山的推荐不许写进一趟杭州的行程");
+});
+
+test("补算失败不抛出去——确认行程是主动作，不能被环境数据拖垮", async () => {
+  const store = fakeStore({ planId: "p1", sessionId: "s1", plan: plan() });
+  const backfill = createHighlightsBackfill(store, {
+    collect: async () => {
+      throw new Error("联网搜索挂了");
+    },
+    today: () => TODAY,
+  });
+
+  backfill.schedule({ userId: "u1", planId: "p1", sessionId: "s1", plan: plan() });
+  await backfill.idle();
+  assert.equal(store.writes.length, 0);
+});
+
+test("连着改三次只跑两轮——在跑的那一轮合并掉中间那几次", async () => {
+  const store = fakeStore({ planId: "p1", sessionId: "s1", plan: plan() });
+  let calls = 0;
+  let release: (() => void) | undefined;
+  const backfill = createHighlightsBackfill(store, {
+    collect: async () => {
+      calls += 1;
+      if (calls === 1) await new Promise<void>((r) => (release = r));
+      return highlights("舟山普陀山");
+    },
+    today: () => TODAY,
+  });
+
+  const t = { userId: "u1", planId: "p1", sessionId: "s1", plan: plan() };
+  backfill.schedule(t);
+  backfill.schedule(t);
+  backfill.schedule(t);
+  release?.();
+  await backfill.idle();
+
+  assert.equal(calls, 2, `第一轮 + 合并后的补跑，实际 ${calls}`);
+});
+
+test("行程变更：同目的地沿用旧推荐，换了目的地立刻清掉", () => {
+  const prev = plan({ destinationHighlights: highlights("舟山普陀山") });
+
+  // 只改了天数 → 旧推荐继续显示，等后台算完再覆盖
+  const sameDest = carryOverHighlights(prev, plan({ days: 3 }));
+  assert.equal(sameDest.destinationHighlights?.destination, "舟山普陀山");
+
+  // 换了目的地 → 清掉，不是等新的算完再换
+  const newDest = carryOverHighlights(prev, plan({ destination: "杭州西湖" }));
+  assert.equal(newDest.destinationHighlights, undefined);
+  assert.ok(!("destinationHighlights" in newDest), "要删键，不是留一个 undefined");
+
+  // 新快照自带但属于上一程（图状态里带过来的） → 同样清掉
+  const staleOwn = carryOverHighlights(
+    undefined,
+    plan({ destination: "杭州西湖", destinationHighlights: highlights("舟山普陀山") }),
+  );
+  assert.equal(staleOwn.destinationHighlights, undefined);
+});

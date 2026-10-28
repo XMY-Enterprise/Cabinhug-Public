@@ -1,0 +1,126 @@
+/* 锚在主区左下角；展开后的位移与大小由 useDockBox 写在行内样式上。 */
+.anchor {
+  position: absolute;
+  left: var(--sa-gutter);
+  bottom: var(--sa-gutter);
+  z-index: var(--sa-z-dock);
+}
+
+/* ── 收起条 ── */
+.pill {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-3);
+  width: 400px;
+  padding-right: var(--sa-space-4);
+}
+
+.pillHit {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-3);
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.avatarLg,
+.avatar {
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top;
+  background: var(--sa-color-brand-tint);
+}
+
+.avatarLg {
+  width: 56px;
+  height: 56px;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.titles {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sa-space-2);
+  font: var(--sa-text-subtitle);
+}
+
+.hint {
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-secondary);
+}
+
+/* ── 对话窗 ── */
+.window {
+  position: relative;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  animation: rise var(--sa-dur) var(--sa-ease);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-2);
+  padding: var(--sa-space-3) var(--sa-space-3) var(--sa-space-2) var(--sa-space-4);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.head:active {
+  cursor: grabbing;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sa-space-2);
+  padding-left: 44px;
+}
+
+/* 右下角改大小：两道斜线。 */
+.resize {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(
+    135deg,
+    transparent 45%,
+    var(--sa-color-border-strong) 45%,
+    var(--sa-color-border-strong) 52%,
+    transparent 52%,
+    transparent 70%,
+    var(--sa-color-border-strong) 70%,
+    var(--sa-color-border-strong) 77%,
+    transparent 77%
+  );
+}

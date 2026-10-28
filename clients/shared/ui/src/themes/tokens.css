@@ -1,0 +1,279 @@
+/* 车机端 HUD 主题 Token
+ *
+ * 依据 内部文档 §5。
+ * 主题切换只改变配色与明暗层级，不改变布局坐标、信息层级与交互语义。
+ * 布局坐标不在本文件——它们以设计基准像素声明在组件里。
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* 生活地图底图：浅冰蓝，道路/水系/绿地可辨识，不得退化为纯白 */
+  --hud-map-base: #e2eef8;
+  --hud-map-base-2: #d5e7f6;
+  --hud-map-road: #ffffff;
+  --hud-map-road-minor: #eef6fd;
+  --hud-map-water: #bfdcf4;
+  --hud-map-green: #d4e8d2;
+  --hud-map-block: #edf4fb;
+
+  /* 信息卡：珍珠白卡面、深蓝文字、浅蓝描边 */
+  --hud-card-bg: rgba(255, 255, 255, 0.92);
+  --hud-card-border: rgba(163, 200, 232, 0.55);
+  --hud-card-shadow: 0 18px 48px rgba(70, 120, 170, 0.18);
+  --hud-text: #1f3d63;
+  --hud-text-muted: #6c8bb0;
+  --hud-divider: rgba(150, 190, 225, 0.45);
+
+  /* 生活环 / 主行动：暖琥珀 */
+  --hud-amber: #f5a623;
+  --hud-amber-bright: #ffc861;
+  --hud-amber-dim: #f7d9a0;
+  --hud-amber-glow: rgba(255, 190, 90, 0.75);
+  --hud-badge-text: #ffffff;
+
+  /* 正常状态：青绿 / 薄荷绿 */
+  --hud-ok: #2fbf9b;
+  /*
+   * 告警与错误：两个主题各配一版色值。深色主题的红（#ff6b6b）落在浅色底图（#d5e7f6）上
+   * 只有 2.4:1，正文不可读。组件引用这里的 Token，不写硬编码 fallback，
+   * 否则切主题时颜色不跟随。
+   */
+  --hud-danger: #c0392b;
+  --hud-warn: #b8730f;
+  /* 告警块的底色：同一支红按主题各调一次透明度与明度，不共用一个 rgba。 */
+  --hud-danger-bg: rgba(192, 57, 43, 0.10);
+
+  --hud-pin: #3d8fd6;
+  /* 蓝图标的底片（design-system.md §4.2 的 blue/100）：酒店图标、展开态的工具按钮、天数下拉。
+     深色下不能沿用 #e3f0fb——那是一块亮斑，改成同色相的低亮度衬底。 */
+  --hud-pin-bg: #e3f0fb;
+  /* 底图陆地色（design-system.md §4.4 的 map/land）。抽屉里「沿途服务」那五格的底也用它——
+     它们是衬底不是卡片；深色下必须换成透亮的一层，照抄 #f2f2f2 会变成五块亮斑。 */
+  --hud-map-land: #f2f2f2;
+  /* 主行动按钮的橙渐变（design-system.md §4.1 的 amber/cta）：一屏只有一个实例。
+     两个主题同一支——它是品牌橙，不随明暗改；文字恒为白。 */
+  --hud-amber-cta: linear-gradient(90deg, #ff8a00 0%, #ffa51f 100%);
+  /* 更淡的一档辅助文字（design-system.md §4.5 的 text/tertiary）：禁用的控件、页码的分母。 */
+  --hud-text-faint: #9bb1d8;
+  /* 底图水系与少量地名标签（车机 design-system.md §4.4）。地名一屏 ≤ 6 个——
+     底图是舞台，标签多了它就开始和前景抢注意力。 */
+  --hud-map-water-smoke: #ccd6d7;
+  --hud-map-label: #6a8099;
+  /* 顶栏与底部工具栏（车机 design-system.md §4.4 的 surface/bar）：比卡片实一档。
+     它们是屏幕的边界不是浮层，透出底图会被误读为可继续滑动。 */
+  --hud-bar-bg: rgba(255, 255, 255, 0.96);
+  --hud-bar-shadow: 0 -6px 24px rgba(70, 120, 170, 0.1);
+  --hud-halo: rgba(255, 255, 255, 0.85);
+  /* 助手底环（放大镜效果）：亮片 + 一圈冷蓝亮环 */
+  --hud-halo-fill: rgba(255, 255, 255, 0.5);
+  --hud-halo-ring: rgba(255, 255, 255, 0.85);
+  /* 音波底片：与卡面同色系，只比卡面暗一档，不抢主行动色 */
+  --hud-wave-bg: rgba(245, 166, 35, 0.12);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* 深海军蓝地理底图：蓝灰道路、深薄荷绿地清晰可见 */
+  --hud-map-base: #0e1c34;
+  --hud-map-base-2: #0a1729;
+  --hud-map-road: #24354f;
+  --hud-map-road-minor: #17263c;
+  --hud-map-water: #122d4a;
+  --hud-map-green: #16382f;
+  --hud-map-block: #132340;
+
+  /* 信息卡：蓝黑卡面、雾白文字、冰蓝描边 */
+  --hud-card-bg: rgba(16, 30, 52, 0.88);
+  --hud-card-border: rgba(120, 170, 220, 0.35);
+  --hud-card-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  --hud-text: #e8f1fb;
+  --hud-text-muted: #8fa9c6;
+  --hud-divider: rgba(120, 170, 220, 0.28);
+
+  /* 生活环 / 主行动：金琥珀 */
+  --hud-amber: #ffbe4d;
+  --hud-amber-bright: #ffd98a;
+  --hud-amber-dim: #8a6a2f;
+  --hud-amber-glow: rgba(255, 200, 110, 0.55);
+  --hud-badge-text: #2a1c05;
+
+  --hud-ok: #3fd6ad;
+  --hud-danger: #ff7a70;
+  --hud-warn: #ffb454;
+  --hud-danger-bg: rgba(255, 122, 112, 0.16);
+
+  --hud-pin: #6fb6ee;
+  --hud-pin-bg: rgba(111, 182, 238, 0.18);
+  --hud-map-land: rgba(255, 255, 255, 0.06);
+  --hud-amber-cta: linear-gradient(90deg, #ff8a00 0%, #ffa51f 100%);
+  --hud-text-faint: #6a80a6;
+  --hud-map-water-smoke: rgba(120, 170, 220, 0.14);
+  --hud-map-label: #8fa9c6;
+  --hud-bar-bg: rgba(16, 30, 52, 0.96);
+  --hud-bar-shadow: 0 -6px 24px rgba(0, 0, 0, 0.45);
+  --hud-halo: rgba(255, 216, 150, 0.5);
+  /* 深色下底环不能再用白片——白圆在深蓝地图上是一块光斑，
+     改成半透明卡面色 + 冷蓝亮环，只留"镜片"的边缘感。 */
+  --hud-halo-fill: rgba(22, 40, 66, 0.5);
+  --hud-halo-ring: rgba(140, 190, 240, 0.42);
+  --hud-wave-bg: rgba(255, 190, 77, 0.16);
+}
+
+/* 车机大字号尺度：以设计基准 1672×941 为准等比缩放。
+ *
+ * --hud-unit 是「1 个设计基准像素对应的实际长度」，纯 CSS 推导，不依赖 JS：
+ * 舞台宽 = min(100vw, 100vh × 16:9)，与 .hud-stage 的 width/max-width 规则同源，
+ * 因此二者恒定一致。用长度单位而非无量纲比例，是为了让 calc(34 * unit) 合法。
+ *
+ * 前提：HUD 占满视口（车机端即如此）。嵌入更小容器时需改用容器查询。
+ */
+:root {
+  /* 悬浮层与文字的尺度 */
+  --hud-unit: calc(min(100vw, 100vh * 1672 / 941) / 1672);
+  /* 生活环场景的尺度。横屏与 --hud-unit 一致；竖屏下二者解耦——
+     场景按宽度铺满，而文字/卡片按更大的尺度放大以保证可读性。 */
+  --hud-scene-unit: var(--hud-unit);
+  /*
+   * 车机字阶（`内部文档` §5.2）：五档，基准 1672×941。
+   *
+   * 三个锚点：上限 27 · 正文 18 · 下限 13；中间两档按比例插入
+   * （27/22 = 1.227、22/18 = 1.222、18/15 = 1.200、15/13 = 1.154），即 27 / 22 / 18 / 15 / 13。
+   * 相邻比全在 1.12 以上，低于此比例的两档视觉上不可区分。
+   *
+   * 13 基准 px 在真机 iPad 上是 10.7px（unit 0.823），「驾驶态一瞥可辨」不由字号单独保证：
+   * 角标是唯一落在 13 上的样式（§5.4），它永远配底片或胶囊，靠形状与色块承担可辨性。
+   * 说明性文字不使用 13 这一档。
+   *
+   * 名字沿用语义而不是序号：`body` 是正文那一档（18），`caption` 是陪衬那一档（15）。
+   * 五档之上是十个命名样式（下一段），组件引用样式，不引用字号。
+   */
+  --hud-font-title: calc(27 * var(--hud-unit));
+  --hud-font-lead: calc(22 * var(--hud-unit));
+  --hud-font-body: calc(18 * var(--hud-unit));
+  --hud-font-caption: calc(15 * var(--hud-unit));
+  --hud-font-micro: calc(13 * var(--hud-unit));
+  /* 圆角四档（§6）：卡片 / 主行动 / 卡内嵌块 / 胶囊。缩略图与头像直接写 50%。 */
+  --hud-radius-card: calc(28 * var(--hud-unit));
+  --hud-radius-cta: calc(24 * var(--hud-unit));
+  --hud-radius-inset: calc(16 * var(--hud-unit));
+  --hud-radius-pill: 999px;
+}
+
+/* ============================================================
+ * 车机端文字样式系统（`内部文档` §5）
+ *
+ * 上面五个 `--hud-font-*` 只是字号轴。组件使用的是下面这十个命名样式：
+ * 每个样式把字号、行高、字重、字距、数字形态、默认色、折行一次定死，
+ * 组件写 `.hud-t-title` 或 `font: var(--hud-type-title)`，不再自己拼 font-size + font-weight。
+ *
+ * 十个样式铺在五档字号上，同一档里靠行高、字距、数字、色、折行这几条轴区分：
+ *
+ *   27  headline 标题 · metric 主数值 · action 主行动   ← 一屏最大的三种字
+ *   22  title 行标题
+ *   18  body 正文 · control 控件 · input 输入            ← 正文锚点
+ *   15  label 标签 · caption 辅助
+ *   13  badge 角标                                       ← 下限，永远配底片
+ *
+ * 行高只有三档：tight 1.15（数字、角标——只有一行，越紧越像一个数）、
+ * normal 1.25 / 1.3（标题、控件、标签——单行为主）、loose 1.45 / 1.5（正文、辅助——会折行）。
+ * 字距只给三处：主行动与控件 +0.02em（胶囊里的字要松一点才不挤边）、标签 +0.04em
+ * （小字、次要、要读成一个词组）。不使用负字距：负字距在汉字上会叠笔画，
+ * 主数值里也会出现「暂无」这类汉字，因此数字样式同样不用。
+ *
+ * `font` 简写里的字号是 `calc(N * --hud-unit)`，所以整套样式随屏幕等比缩放。
+ * 手机不吃这一套：竖屏块把五个字号 Token 重绑到手机阶梯，而手机的组件走 `--m-*`。
+ * ============================================================ */
+:root {
+  /* 27 ── 一屏最大的三种字 */
+  --hud-type-headline: 700 var(--hud-font-title) / 1.25 var(--font-ui);
+  --hud-type-metric:   700 var(--hud-font-title) / 1.15 var(--font-ui);
+  --hud-type-action:   700 var(--hud-font-title) / 1.25 var(--font-ui);
+  /* 22 ── 行标题：比正文重一档，比标题小一档 */
+  --hud-type-title:    700 var(--hud-font-lead) / 1.3 var(--font-ui);
+  /* 18 ── 内容主体与控件（正文锚点） */
+  --hud-type-body:     400 var(--hud-font-body) / 1.5 var(--font-ui);
+  --hud-type-control:  700 var(--hud-font-body) / 1.3 var(--font-ui);
+  --hud-type-input:    400 var(--hud-font-body) / 1.3 var(--font-ui);
+  /* 15 ── 陪衬 */
+  --hud-type-label:    500 var(--hud-font-caption) / 1.3 var(--font-ui);
+  --hud-type-caption:  400 var(--hud-font-caption) / 1.45 var(--font-ui);
+  /* 13 ── 下限，只给角标，且永远配底片 */
+  --hud-type-badge:    700 var(--hud-font-micro) / 1.15 var(--font-ui);
+}
+
+/* 样式类：一个类 = 一个样式的全部属性。颜色给的是默认色，语义色（琥珀 / 红）在组件里覆盖。 */
+.hud-t-headline { font: var(--hud-type-headline); letter-spacing: 0; color: var(--hud-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-t-metric   { font: var(--hud-type-metric); letter-spacing: 0; color: var(--hud-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hud-t-action   { font: var(--hud-type-action); letter-spacing: 0.02em; color: var(--hud-badge-text); white-space: nowrap; }
+.hud-t-title    { font: var(--hud-type-title); letter-spacing: 0; color: var(--hud-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-t-body     { font: var(--hud-type-body); letter-spacing: 0; color: var(--hud-text); }
+.hud-t-control  { font: var(--hud-type-control); letter-spacing: 0.02em; color: var(--hud-text); white-space: nowrap; }
+.hud-t-input    { font: var(--hud-type-input); letter-spacing: 0; color: var(--hud-text); white-space: nowrap; }
+.hud-t-label    { font: var(--hud-type-label); letter-spacing: 0.04em; color: var(--hud-text-muted); white-space: nowrap; }
+/* 角标用深蓝字压橙：13 这一档上白压橙只有 2.03:1，不可读；
+   深蓝 #1F3D63 压 amber/500 是 5.35:1，过 AA。白压橙只用于主行动（action）。 */
+.hud-t-badge    { font: var(--hud-type-badge); letter-spacing: 0; color: var(--hud-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hud-t-caption  { font: var(--hud-type-caption); letter-spacing: 0; color: var(--hud-text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* 两个修饰：数字形态、加重一档。加在任何样式上，不另起样式。 */
+.hud-t--num    { font-variant-numeric: tabular-nums; }
+.hud-t--strong { font-weight: 700; }
+/* 输入框的占位符是次要色：它不是内容，是提示。 */
+.hud-t-input::placeholder { color: var(--hud-text-muted); }
+
+/* ============================================================
+ * 手机端排版阶梯
+ *
+ * 上面的字阶属于车机：基准 1672×941，随 `--hud-unit` 等比缩放。手机端 `--hud-unit`
+ * 切成 `--hud-portrait-unit`（基准 390×844），同一个 `--hud-font-body` 在
+ * iPhone 16 Pro Max 上算出 22px，不适合作手机正文，因此手机单独一套阶梯。
+ *
+ * 字号是定值 px，不随 unit 缩放：手机屏幕变大时应多显示内容，而不是放大字号。
+ * 每档钉死行高，全部 ≥ 12px。
+ *
+ * 字重只留三档，由字体文件决定：`fonts.css` 里中文只带 400 / 500 / 600–700 三个字面。
+ * canvas 实测（48px「开始行程」的墨量）：400→763、500→914、600/650/700/800/900 一律→1094，
+ * 中文在 600 往上不再变粗；而 Inter 是 100–900 可变，Latin 一路变粗（600→452、700→503、800→564）。
+ * 因此 `font-weight: 800` 会让中英混排的同一行里数字比汉字更粗。
+ * ============================================================ */
+:root {
+  /*
+   * 字号 + 配套行高。用哪一档就一起用那一档的行高，不单独写 line-height。
+   *
+   * 页面标题 16 对齐 iOS 的内联导航栏标题（17pt semibold）而不是 Large Title（34pt）：
+   * 「车辆档案」「设置」这类标题一直挂在顶上，不随滚动收起。
+   *
+   * 相邻两档 ≥ 1.12 倍，低于此比例的两档不可区分
+   * （`clients/mobile/test/typography-scale.test.ts` 守这条）。
+   * 同尺寸的主次由字重区分：列表行标题与按钮走 title 档的 500，角标与芯片走 caption 档的 500。
+   * 这是 iOS 的常规做法（Headline 与 Body 都是 17pt，只差字重）。
+   */
+  --m-font-display: 26px;   --m-lh-display: 1.2;   /* 登录页 wordmark、配对码 */
+  --m-font-metric: 20px;    --m-lh-metric: 1.15;   /* 里程 / 电量 / 金额这类主数值 */
+  --m-font-title: 16px;     --m-lh-title: 1.3;     /* 页面标题、卡片标题、按钮、页签 */
+  --m-font-body: 14px;      --m-lh-body: 1.5;      /* 正文、气泡、列表行（行标题用 500） */
+  --m-font-caption: 12px;   --m-lh-caption: 1.4;   /* 次要说明、时间、单位、角标（角标用 500）——下限 */
+
+  /* 字重：只有这三档在中文上有真字形（理由见上）。 */
+  --m-weight-regular: 400;
+  --m-weight-medium: 500;
+  --m-weight-bold: 700;
+
+  /*
+   * 手机端的面、圆角与底片（`内部文档` §4 / §6 / §9）。
+   * 页底色与圆角从这里取；存量页面按棘轮逐步替换写死的值。
+   * 手机的卡是实白不是车机那种 0.92 半透明：手机底下没有地图要透。
+   */
+  --m-page-bg: #eaf2fa;
+  --m-card-bg: #ffffff;
+  --m-inset-bg: #f7fafd;
+  --m-card-shadow: 0 10px 28px rgba(70, 120, 170, 0.1);
+  --m-scrim: rgba(20, 40, 66, 0.45);
+  --m-amber-tint: rgba(245, 166, 35, 0.14);
+  --m-blue-tint: rgba(61, 143, 214, 0.12);
+  --m-radius-card: 24px;
+  --m-radius-sheet: 32px;
+  --m-radius-modal: 28px;
+}

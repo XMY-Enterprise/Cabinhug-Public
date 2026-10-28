@@ -1,0 +1,51 @@
+.card {
+  display: grid;
+  gap: var(--sa-space-2);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: var(--sa-space-1);
+}
+
+.title {
+  font: var(--sa-text-body-strong);
+}
+
+.map {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--sa-radius-sm);
+  background: var(--sa-gradient-minimap);
+}
+
+.route {
+  fill: none;
+  stroke: var(--sa-color-brand);
+  stroke-width: 2.5;
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.spot circle {
+  fill: var(--sa-color-brand);
+  stroke: var(--sa-color-surface);
+  stroke-width: 2;
+}
+
+.spot text {
+  fill: var(--sa-color-text-inverse);
+  font: 700 9px/1 var(--sa-font-family);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.hotel {
+  fill: var(--sa-color-info);
+  stroke: var(--sa-color-surface);
+  stroke-width: 2;
+}

@@ -1,0 +1,30 @@
+.composer {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-2);
+  margin: 0 var(--sa-space-4) var(--sa-space-4);
+  padding: var(--sa-space-1) var(--sa-space-1) var(--sa-space-1) var(--sa-space-4);
+  border: 1px solid var(--sa-color-border);
+  border-radius: var(--sa-radius-pill);
+  background: var(--sa-color-surface);
+}
+
+.composer:focus-within {
+  border-color: var(--sa-color-info-line);
+  box-shadow: 0 0 0 3px var(--sa-color-info-soft);
+}
+
+.input {
+  flex: 1;
+  max-height: 96px;
+  padding: var(--sa-space-2) 0;
+  border: none;
+  background: transparent;
+  resize: none;
+  font: var(--sa-text-body);
+  field-sizing: content;
+}
+
+.input:focus {
+  outline: none;
+}

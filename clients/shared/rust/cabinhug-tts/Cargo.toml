@@ -1,0 +1,20 @@
+[package]
+name = "cabinhug-tts"
+version = "0.1.0"
+edition = "2021"
+
+# 暖暖播报里**与端无关**的那部分：文本清洗、合成端点缓存、
+# 播放状态/代际、rodio 从内存直解 WAV 进声卡。两个端（cockpit / mobile）共用一份。
+#
+# 本 crate 是"核"；车机 `cockpit/src-tauri/src/tts/` 保留差异项：
+# 垫场话抢占/衔接、背景音 ducking、AEC 参考信号旁路、macOS `say` 降级。
+# 本 crate **不依赖 tauri**：状态变化经回调发射，网关地址与设备 JWT 由调用方注入。
+[dependencies]
+cabinhug-core = { path = "../cabinhug-core" }
+cabinhug-net = { path = "../cabinhug-net" }
+# 与车机同版（ACR-004）：音频字节直接进声卡，macOS/iOS 同一条路径——iOS 沙盒禁止 spawn 子进程。
+# 关缺省 feature（ACR-068）：车载设备不带 MP3/AAC 解码器，只开 WAV / FLAC / Vorbis。
+# 缺省集合里的 mp3（symphonia-bundle-mp3）与 mp4（isomp4 + aac）随二进制出货；
+# 与 cockpit 的列表保持一致，scripts/dev/check/device-audio-codecs.test.ts 守着 Cargo.lock。
+rodio = { version = "0.22", default-features = false, features = ["playback", "recording", "flac", "vorbis", "wav", "dither"] }
+tokio = { version = "1", features = ["rt", "time", "macros"] }

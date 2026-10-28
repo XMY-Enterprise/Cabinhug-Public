@@ -1,0 +1,8 @@
+.fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--sa-color-text-secondary);
+  background: var(--sa-color-canvas);
+}

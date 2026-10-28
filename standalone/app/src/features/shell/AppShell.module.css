@@ -1,0 +1,26 @@
+.shell {
+  display: grid;
+  grid-template-columns: var(--sa-rail-w) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--sa-statusbar-h);
+  height: 100%;
+  background: var(--sa-color-canvas);
+}
+
+.rail {
+  grid-row: 1;
+  grid-column: 1;
+  min-height: 0;
+}
+
+.main {
+  grid-row: 1;
+  grid-column: 2;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.status {
+  grid-row: 2;
+  grid-column: 1 / -1;
+}

@@ -1,0 +1,17 @@
+packages:
+  # 顶层按受众分目录（ACR-020）。
+  # 面向车主的端；企业内部的控制台在 enterprise/console
+  - "clients/*"
+  - "enterprise/console"
+  # 企业内部后端：真正的服务住这里；假第三方在 mocks/
+  - "enterprise/backend/*"
+  # 假第三方：替外部系统站位，不是我们的服务，所以不在 enterprise/backend/ 下
+  - "mocks/*"
+  # 服务端专属库：只被 gateway / agent-runtime / worker 依赖
+  - "enterprise/backend/shared/*"
+  # 端云契约：唯一被内外两侧同时依赖的包，不属于任何一侧
+  - "contracts"
+  # 两个消费者端共享的 UI；同目录下的 rust/ 是 cargo 成员，不在 pnpm 里
+  - "clients/shared/*"
+  # 单机版整包的桌面界面（ARCH-002）；同目录的 host/ 是 cargo 成员，不在 pnpm 里
+  - "standalone/app"

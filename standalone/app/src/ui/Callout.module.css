@@ -1,0 +1,38 @@
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sa-space-3);
+  padding: var(--sa-space-3) var(--sa-space-4);
+  border-radius: var(--sa-radius-sm);
+  font: var(--sa-text-body);
+  color: var(--sa-color-text);
+}
+
+.info {
+  background: var(--sa-color-info-soft);
+}
+
+.info .icon {
+  color: var(--sa-color-info);
+}
+
+.warn {
+  background: var(--sa-color-warn-soft);
+  border: 1px solid var(--sa-color-brand-line);
+}
+
+.warn .icon {
+  color: var(--sa-color-brand);
+}
+
+.icon {
+  margin-top: 2px;
+}
+
+.text {
+  min-width: 0;
+}
+
+.title {
+  font-weight: 700;
+}

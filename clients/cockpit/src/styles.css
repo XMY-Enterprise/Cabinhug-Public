@@ -1,0 +1,155 @@
+/* 车机端全局样式：HUD 占满视口，无滚动条 */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--hud-map-base-2, #0a1729);
+}
+
+/* ── 触屏长按不弹系统菜单（ACR-004）─────────────────────────────
+ *
+ * iPad 上长按图片会弹出 iOS 的图片菜单（Share / Save to Photos /
+ * Copy Subject），吃掉「长按说话」这一核心交互。
+ * `-webkit-touch-callout` 只在触屏上生效，桌面端不会出现。
+ *
+ * `.hud-viewport` 上已有的 `user-select: none`（clients/shared/ui）只管文字选择，
+ * 图片的长按菜单是另一套，两条都要。
+ *
+ * `-webkit-user-drag: none` 一并给：长按之后接着拖，WebView 默认会把精灵图
+ * 拖出一个半透明副本跟着手指走。
+ *
+ * 输入框必须豁免：设置页要填网关 IP，需要长按粘贴。
+ */
+#root {
+  -webkit-touch-callout: none;
+}
+
+#root img,
+#root [class*="sprite"],
+#root [class*="tripmark"] {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+#root input,
+#root textarea {
+  -webkit-touch-callout: default;
+  user-select: text;
+}
+
+/* 验收用临时开关条（非最终产品交互） */
+.hud-devbar {
+  position: fixed;
+  /* 新版 UI 的顶栏占掉屏顶 68 个单位，演示条落到它下面。 */
+  top: calc(68 * var(--hud-unit) + 10px);
+  left: calc(12 * var(--hud-unit));
+  /* 撑到右边界只是为了给展开后的按钮行一个换行宽度；
+     容器自己不接事件，否则这一整条透明区域会盖住 HUD 顶部点不到。 */
+  right: calc(12 * var(--hud-unit));
+  pointer-events: none;
+  z-index: 99;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(8 * var(--hud-unit));
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+}
+.hud-devbar:hover { opacity: 1; }
+.hud-devbar > * { pointer-events: auto; }
+.hud-devbar button {
+  padding: calc(6 * var(--hud-unit)) calc(12 * var(--hud-unit));
+  font-size: calc(13 * var(--hud-unit));
+  border-radius: 999px;
+  border: 1px solid rgba(140, 180, 220, 0.5);
+  background: rgba(255, 255, 255, 0.75);
+  color: #1f3d63;
+  cursor: pointer;
+}
+
+/* 收起态的圆钮：devbar 默认只露出它一个。 */
+.hud-devbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8 * var(--hud-unit));
+  padding-left: calc(6 * var(--hud-unit));
+}
+.hud-devbar-chevron {
+  width: calc(20 * var(--hud-unit));
+  height: calc(20 * var(--hud-unit));
+  border-radius: 50%;
+  border: 1px solid rgba(140, 180, 220, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(14 * var(--hud-unit));
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+.hud-devbar-toggle[aria-expanded="true"] .hud-devbar-chevron { transform: rotate(90deg); }
+
+/*
+ * 展开后的按钮行必须能换行：按钮数量会增长，而车机是固定分辨率、没有横向滚动。
+ */
+.hud-devbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(8 * var(--hud-unit));
+  max-width: 100%;
+}
+
+/* 竖屏按正式 HUD 验收：临时开发开关不占用顶部时间轴安全区。 */
+@media (max-aspect-ratio: 85/100) {
+  .hud-devbar { display: none; }
+}
+
+/* 对话层样式随 DialogScreen 在 @cabinhug/ui：clients/shared/ui/src/dialog/dialog.css */
+
+/* HITL 确认弹层样式随 ConfirmSheet 在 @cabinhug/ui：clients/shared/ui/src/hitl/confirm-sheet.css */
+
+/* ── 导览采集进度卡：右下小卡，不遮地图主视区与底部导航 ── */
+.hud-guide-jobs-slot {
+  position: fixed;
+  right: calc(24 * var(--hud-unit));
+  /* 右列空带：行前提示卡（底 ≈638）与右下数据条（顶 ≈820）之间；
+     放不下的行在卡内滚动，不挤占地图、不叠在别的卡上。 */
+  bottom: calc(88 * var(--hud-unit));
+  width: calc(300 * var(--hud-unit));
+  max-height: calc(184 * var(--hud-unit));
+  overflow-y: auto;
+  z-index: 40;
+}
+
+/* ── 访客态常驻标记（F-56-06）──
+ * 顶部居中、压在 HUD 之上：它要在任何一屏都看得见。
+ * 播报只说一次，而中途上车的人只能靠它知道现在是降级态。 */
+.cockpit-guest-badge {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
+  position: fixed;
+  top: calc(12 * var(--hud-unit));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: calc(8 * var(--hud-unit)) calc(18 * var(--hud-unit));
+  border-radius: 999px;
+  background: rgba(214, 158, 46, 0.92);
+  color: #1a1205;
+  letter-spacing: 0.02em;
+  box-shadow: 0 calc(2 * var(--hud-unit)) calc(12 * var(--hud-unit)) rgba(0, 0, 0, 0.28);
+  pointer-events: none; /* 不挡任何操作 */
+  z-index: 60;
+}
+
+/* ── 新版 UI 的顶栏（`.hud-topbar`，hud.css 末段）压在所有页面上方 ──
+   档案页与设置页都是 `position: fixed; inset: 0` 的整页，顶边让开顶栏，
+   否则页头（车辆 / 人员页签、设置标题）整行落在顶栏底下。 */
+/* 类名叠写提高特异度：各页自己的 `inset: 0` 写在按需加载的模块样式里、排在本文件之后，
+   同特异度会把这条盖回去，页头仍会压在顶栏底下。 */
+.cown.cown,
+.cset.cset,
+.dlg-screen.dlg-screen {
+  top: var(--hud-topbar-h);
+}
+

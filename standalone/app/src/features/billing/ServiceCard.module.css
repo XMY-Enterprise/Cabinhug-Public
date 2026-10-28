@@ -1,0 +1,142 @@
+.card {
+  display: grid;
+  align-content: start;
+  gap: var(--sa-space-3);
+  padding: var(--sa-space-4);
+  border: 1px solid var(--sa-color-border);
+  border-radius: var(--sa-radius-md);
+  background: var(--sa-color-surface);
+  box-shadow: var(--sa-shadow-card);
+  color: var(--sa-color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--sa-dur-fast) var(--sa-ease),
+    box-shadow var(--sa-dur-fast) var(--sa-ease);
+}
+
+.card:hover {
+  border-color: var(--sa-color-border-strong);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--sa-color-focus);
+  outline-offset: 2px;
+}
+
+.selected,
+.selected:hover {
+  border-color: var(--sa-color-brand);
+  box-shadow: 0 0 0 3px var(--sa-color-brand-soft);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-2);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: var(--sa-control-sm);
+  height: var(--sa-control-sm);
+  border-radius: var(--sa-radius-sm);
+  background: var(--sa-color-brand-tint);
+  color: var(--sa-color-brand-strong);
+}
+
+.titles {
+  display: grid;
+  min-width: 0;
+}
+
+.name {
+  font: var(--sa-text-body-strong);
+}
+
+.role {
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-tertiary);
+}
+
+.figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sa-space-2);
+}
+
+.big {
+  font: var(--sa-text-display);
+}
+
+.of {
+  font: var(--sa-text-title);
+  color: var(--sa-color-text-tertiary);
+}
+
+.unit {
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-secondary);
+}
+
+.meter {
+  height: 6px;
+  border-radius: var(--sa-radius-pill);
+  background: var(--sa-color-surface-inset);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.ok {
+  background: var(--sa-color-ok);
+}
+
+.warn {
+  background: var(--sa-color-warn);
+}
+
+.danger {
+  background: var(--sa-color-danger);
+}
+
+.facts {
+  display: grid;
+  gap: var(--sa-space-1);
+  margin: 0;
+  padding-top: var(--sa-space-2);
+  border-top: 1px solid var(--sa-color-divider);
+}
+
+.facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sa-space-2);
+}
+
+.facts dt {
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-secondary);
+}
+
+.facts dd {
+  margin: 0;
+  font: var(--sa-text-body-strong);
+}
+
+.muted {
+  color: var(--sa-color-text-tertiary);
+}
+
+.error {
+  margin: 0;
+  font: var(--sa-text-caption);
+  color: var(--sa-color-danger);
+  overflow-wrap: anywhere;
+}

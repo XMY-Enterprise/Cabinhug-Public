@@ -1,0 +1,73 @@
+# 发布态镜像覆盖（GitHub Release 自动发布链路）。
+#
+# 它只改「镜像从哪来」，不改任何服务定义。服务本身仍由 infra/docker-compose.stack.yml
+# 与同目录的 worker.yml / web.yml 描述，那三份是唯一真相源。本文件叠在它们之上，
+# 把每个服务的镜像指向阿里云 ACR 的已构建产物，并要求每次都重新拉取。
+#
+# 服务器是 2c8G，在机器上跑 pnpm install + 9 个镜像构建要十几分钟且吃满内存；
+# 构建放在 GitHub Actions，服务器侧只做 pull（ACR 同地域走内网，秒级）。
+# 本机开发不受影响：不带这个 -f 就还是 build 本地代码。
+#
+#   docker compose -f infra/docker-compose.stack.yml -f infra/compose/worker.yml \
+#                  -f infra/compose/web.yml -f infra/compose/release.yml \
+#                  --profile worker --profile web up -d --no-build
+#
+# 两个变量由部署侧传入（shell 环境优先于 --env-file，所以不必写进服务器 .env）：
+#   CABINHUG_IMAGE_PREFIX  registry.<地域>.aliyuncs.com/<命名空间>
+#   CABINHUG_IMAGE_TAG     发布 tag，与 GitHub Release 的 tag 逐字一致（如 v1.2.3）
+#
+# 基础组件（postgres / redis / minio）不在这里：它们用的是上游公共镜像，
+# 版本由 stack 文件钉死，不随本仓发布走。
+
+x-release-image: &pull-always
+  # 同一个 tag 被重新推送时（补丁重发），missing 策略会沿用本地旧层，部署不生效。
+  pull_policy: always
+
+services:
+  gateway:
+    image: ${CABINHUG_IMAGE_PREFIX:?发布部署必须提供 CABINHUG_IMAGE_PREFIX}/cabinhug-gateway:${CABINHUG_IMAGE_TAG:?发布部署必须提供 CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  agent-runtime:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-agent-runtime:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  # 一次性迁移任务。它与 gateway 同源同 tag，保证迁移不落后于服务。
+  migrate:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-migrate:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  worker:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-worker:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  web:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-web:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  # 四个「假第三方」。它们不装 workspace 依赖、构建秒级，仍随同一个 tag 发布，
+  # 保证与服务端同批次（演示时可 stop 其中一个展示降级）。
+  mock-dealer:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-mock-dealer:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  mock-cabin:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-mock-cabin:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  mock-repair:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-mock-repair:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  mock-insurance:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-mock-insurance:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  # 两个客户端演示站（profile: clients，见 infra/compose/clients.yml）
+  cockpit-web:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-cockpit-web:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always
+
+  mobile-web:
+    image: ${CABINHUG_IMAGE_PREFIX}/cabinhug-mobile-web:${CABINHUG_IMAGE_TAG}
+    <<: *pull-always

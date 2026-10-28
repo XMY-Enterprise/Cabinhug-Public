@@ -1,0 +1,117 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sa-space-2);
+  padding: 0 var(--sa-space-4);
+  border: 1px solid transparent;
+  font: var(--sa-text-label);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--sa-dur-fast) var(--sa-ease),
+    border-color var(--sa-dur-fast) var(--sa-ease),
+    box-shadow var(--sa-dur-fast) var(--sa-ease),
+    transform var(--sa-dur-fast) var(--sa-ease);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 高度 ── */
+.sm {
+  height: var(--sa-control-sm);
+  padding: 0 var(--sa-space-3);
+}
+
+.md {
+  height: var(--sa-control-md);
+}
+
+.lg {
+  height: var(--sa-control-lg);
+  padding: 0 var(--sa-space-6);
+  font: var(--sa-text-body-strong);
+}
+
+/* ── 形状 ── */
+.rounded {
+  border-radius: var(--sa-radius-sm);
+}
+
+.pill {
+  border-radius: var(--sa-radius-pill);
+}
+
+.circle {
+  border-radius: 50%;
+}
+
+.iconOnly {
+  padding: 0;
+  aspect-ratio: 1;
+}
+
+.block {
+  width: 100%;
+}
+
+/* ── 外观 ── */
+.primary {
+  background: var(--sa-gradient-brand);
+  color: var(--sa-color-text-inverse);
+  box-shadow: var(--sa-shadow-brand);
+}
+
+.primary:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.secondary {
+  background: var(--sa-color-surface);
+  border-color: var(--sa-color-border);
+  color: var(--sa-color-text);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--sa-color-border-strong);
+  background: var(--sa-color-surface-hover);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--sa-color-text);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--sa-color-surface-hover);
+}
+
+.float {
+  background: var(--sa-color-surface-float);
+  border-color: var(--sa-color-border);
+  box-shadow: var(--sa-shadow-float);
+  color: var(--sa-color-text);
+}
+
+.float:hover:not(:disabled) {
+  background: var(--sa-color-surface);
+}
+
+/* 开关类按钮按下态（「全屏」切换等）：品牌浅底，与页签的次级选中同一判断。 */
+.selected {
+  background: var(--sa-color-brand-soft);
+  border-color: var(--sa-color-brand-line);
+  color: var(--sa-color-brand-strong);
+}

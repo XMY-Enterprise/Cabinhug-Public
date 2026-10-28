@@ -1,0 +1,41 @@
+[package]
+name = "cockpit"
+version = "0.1.0"
+edition = "2021"
+
+# Tauri 移动端要求 app crate 是库（ACR-004）：iOS 走 staticlib 由 Swift 壳链接，
+# 桌面 main.rs 只是 `cockpit_lib::run()` 的三行壳。名字带 _lib 是 Tauri 官方模板的
+# 约定——crate 名与二进制名（cockpit）撞了会让 rlib/bin 在 target 目录互相覆盖。
+[lib]
+name = "cockpit_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 附件命令的 Android 回落形态：raw IPC 不可用时 JSON 体里带 base64
+base64 = "0.22"
+tokio = { version = "1", features = ["time"] }
+cabinhug-core = { path = "../../../clients/shared/rust/cabinhug-core" }
+cabinhug-net = { path = "../../../clients/shared/rust/cabinhug-net" }
+cabinhug-media = { path = "../../../clients/shared/rust/cabinhug-media" }
+cabinhug-telemetry = { path = "../../../clients/shared/rust/cabinhug-telemetry" }
+# 哨兵的纯逻辑层（唤醒词 / 对话窗口 / 降级闸），与手机端共用一份。
+# 拆分理由见 clients/shared/rust/cabinhug-voice/src/lib.rs 文件头。
+cabinhug-voice = { path = "../../../clients/shared/rust/cabinhug-voice" }
+# 端侧指示灯检测（ACR-044）：tract 跑 yolo11n，纯 Rust。
+cabinhug-vision = { path = "../../../clients/shared/rust/cabinhug-vision" }
+# 回采文本比对（voice/echo.rs）直接用它做拼音归一：唤醒词归一在 cabinhug-voice，
+# 回声消除是车机独有的（手机端没有本地播报）。
+pinyin = "0.11.0"
+# TTS 播放（ACR-004 第 2 步）：音频字节直接进声卡，macOS/iOS 同一条路径。
+# 不用 afplay 子进程：iOS 沙盒禁止 spawn，出声能力不应因平台而异。
+# 底层是 cpal（已在 cabinhug-media 的依赖树里），没有引入新的音频后端。
+# 关缺省 feature（ACR-068）：车载设备不带 MP3/AAC 解码器，只开 WAV / FLAC / Vorbis；
+# 与 cabinhug-tts 的列表保持一致，scripts/dev/check/device-audio-codecs.test.ts 守着 Cargo.lock。
+rodio = { version = "0.22", default-features = false, features = ["playback", "recording", "flac", "vorbis", "wav", "dither"] }
+tauri-plugin-opener = "2.5.4"

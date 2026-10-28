@@ -1,0 +1,43 @@
+/**
+ * 每轮 `session/prompt` 前置当天日期。
+ *
+ * 模型手里没有今天的日期时，「下周末」这类相对日期只能靠猜。断言在拼文本的那一层。
+ */
+
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import { dateline, withDateline } from "../src/acp-client/connection";
+
+describe("session/prompt 前置日期行", () => {
+  it("给出 YYYY-MM-DD 与星期，按北京时间", () => {
+    // 2026-09-04 03:14 UTC = 北京时间 09-04 11:14，周五
+    const now = Date.parse("2026-09-04T03:14:00Z");
+    assert.equal(dateline(now), "【今天是 2026-09-04（周五），北京时间】");
+  });
+
+  it("UTC 还是昨天、北京已过零点时，报的是北京的日期", () => {
+    // 2026-09-04 17:30 UTC = 北京时间 09-05 01:30，周六
+    const now = Date.parse("2026-09-04T17:30:00Z");
+    assert.equal(dateline(now), "【今天是 2026-09-05（周六），北京时间】");
+  });
+
+  it("日期行在用户原话之前，原话一字不改", () => {
+    const now = Date.parse("2026-09-04T03:14:00Z");
+    const text = withDateline("下周末带父母去杭州自驾，顺路把保养做了，帮我安排。", now);
+    const lines = text.split("\n");
+    assert.equal(lines[0], "【今天是 2026-09-04（周五），北京时间】");
+    // 节假日行：模型算不准农历，由代码把事实给它。见 holidays.test.ts
+    assert.match(lines[1] ?? "", /^【接下来的节假日：/);
+    assert.equal(
+      lines[lines.length - 1],
+      "下周末带父母去杭州自驾，顺路把保养做了，帮我安排。",
+      "原话必须在最后且一字不改",
+    );
+  });
+
+  it("表覆盖不到的年份：只前置日期行，不硬编一个节假日行", () => {
+    const far = Date.parse("2030-05-01T03:14:00Z");
+    assert.equal(withDateline("帮我看看轮胎", far), "【今天是 2030-05-01（周三），北京时间】\n帮我看看轮胎");
+  });
+});

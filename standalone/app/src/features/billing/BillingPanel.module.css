@@ -1,0 +1,80 @@
+.panel {
+  display: grid;
+  gap: var(--sa-space-4);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sa-space-3) var(--sa-space-4);
+}
+
+.total {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sa-space-2);
+  margin-right: auto;
+}
+
+.totalLabel {
+  font: var(--sa-text-label);
+  color: var(--sa-color-text-secondary);
+}
+
+.totalValue {
+  font: var(--sa-text-headline);
+  color: var(--sa-color-brand-strong);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sa-space-3);
+  transition: opacity var(--sa-dur-fast) var(--sa-ease);
+}
+
+.stale {
+  opacity: 0.55;
+}
+
+.skeleton {
+  height: 188px;
+  border-radius: var(--sa-radius-md);
+  background: var(--sa-color-surface-inset);
+}
+
+.detail {
+  display: grid;
+  gap: var(--sa-space-2);
+}
+
+.detailHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sa-space-2);
+}
+
+.detailTitle {
+  margin: 0;
+  font: var(--sa-text-title);
+}
+
+.scope {
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-tertiary);
+}
+
+.note,
+.foot {
+  margin: 0;
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-secondary);
+}
+
+.foot {
+  padding-top: var(--sa-space-3);
+  border-top: 1px solid var(--sa-color-divider);
+  color: var(--sa-color-text-tertiary);
+}

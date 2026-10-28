@@ -1,0 +1,430 @@
+/*
+ * 车机绑定与上车声明。横屏、大触达：它出现在人刚坐进车里的时刻，
+ * 而那时候手上可能还拿着东西。
+ */
+.boarding {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--surface-base, #0b0d12);
+  color: var(--text-primary, #f5f7fa);
+  padding: calc(32 * var(--hud-unit));
+  z-index: 40;
+}
+
+.boarding-card {
+  width: min(calc(720 * var(--hud-unit)), 100%);
+  display: flex;
+  flex-direction: column;
+  gap: calc(18 * var(--hud-unit));
+}
+
+.boarding-card h1 {
+  font: var(--hud-type-headline);
+  margin: 0;
+}
+
+.boarding-steps {
+  margin: 0;
+  padding-left: calc(20 * var(--hud-unit));
+  line-height: 1.9;
+  opacity: 0.8;
+}
+
+/*
+ * 二维码。白底是必须的：静区与浅色模块都靠它，
+ * 直接放在深色车机背景上，扫码器会把整块当噪声。
+ */
+.boarding-qr {
+  align-self: center;
+  padding: calc(12 * var(--hud-unit));
+  border-radius: calc(12 * var(--hud-unit));
+  background: #fff;
+  line-height: 0;
+}
+
+.boarding-qr svg {
+  display: block;
+  width: min(calc(300 * var(--hud-unit)), 42vh);
+  height: auto;
+}
+
+.boarding-device-id {
+  font: var(--hud-type-caption);
+  margin: 0;
+  padding: calc(14 * var(--hud-unit)) calc(16 * var(--hud-unit));
+  border-radius: calc(10 * var(--hud-unit));
+  background: var(--surface-raised, rgba(255, 255, 255, 0.06));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+.boarding-code-row {
+  display: flex;
+  gap: calc(12 * var(--hud-unit));
+}
+
+.boarding-code-row input {
+  font: var(--hud-type-metric);
+  font-variant-numeric: tabular-nums;
+  flex: 1;
+  height: calc(56 * var(--hud-unit));
+  padding: 0 calc(16 * var(--hud-unit));
+  border-radius: calc(12 * var(--hud-unit));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
+  background: var(--surface-raised, rgba(255, 255, 255, 0.06));
+  color: inherit;
+  letter-spacing: 0.3em;
+}
+
+.boarding-code-row button {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
+  min-width: calc(140 * var(--hud-unit));
+  height: calc(56 * var(--hud-unit));
+  border: none;
+  border-radius: calc(12 * var(--hud-unit));
+  background: var(--accent, #4c8dff);
+  color: #fff;
+}
+
+.boarding-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(200 * var(--hud-unit)), 1fr));
+  gap: calc(12 * var(--hud-unit));
+}
+
+.boarding-members button {
+  width: 100%;
+  min-height: calc(88 * var(--hud-unit));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: calc(6 * var(--hud-unit));
+  padding: calc(16 * var(--hud-unit));
+  border-radius: calc(14 * var(--hud-unit));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
+  background: var(--surface-raised, rgba(255, 255, 255, 0.06));
+  color: inherit;
+  text-align: left;
+}
+
+.boarding-name {
+  font: var(--hud-type-title);
+}
+
+.boarding-role {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.boarding-guest {
+  border-style: dashed !important;
+}
+
+.boarding-hint {
+  font: var(--hud-type-caption);
+  margin: 0;
+  opacity: 0.6;
+}
+
+.boarding-error {
+  font: var(--hud-type-caption);
+  margin: 0;
+  color: var(--danger, #ff6b6b);
+}
+
+.boarding-members button:disabled,
+.boarding-code-row button:disabled {
+  opacity: 0.5;
+}
+
+/* ── 登录门（G1）。与 .boarding 同一层遮罩语义 ─────────── */
+
+.clogin {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--surface-base, #0b0d12);
+  color: var(--text-primary, #f5f7fa);
+  padding: calc(32 * var(--hud-unit));
+  z-index: 40;
+}
+
+.clogin-card {
+  width: min(calc(480 * var(--hud-unit)), 100%);
+  display: flex;
+  flex-direction: column;
+  gap: calc(14 * var(--hud-unit));
+}
+
+.clogin-card h1 {
+  font: var(--hud-type-headline);
+  margin: 0;
+}
+
+.clogin-hint {
+  margin: 0;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.64));
+}
+
+.clogin-field {
+  font: var(--hud-type-label);
+  letter-spacing: 0.04em;
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--hud-unit));
+}
+
+.clogin-field input {
+  font: var(--hud-type-input);
+  padding: calc(12 * var(--hud-unit)) calc(14 * var(--hud-unit));
+  border-radius: calc(10 * var(--hud-unit));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
+  background: var(--surface-raised, rgba(255, 255, 255, 0.06));
+  color: inherit;
+}
+
+.clogin-error {
+  font: var(--hud-type-caption);
+  margin: 0;
+  color: var(--danger, #ff7a70);
+  overflow-wrap: anywhere;
+}
+
+.clogin-submit {
+  font: var(--hud-type-action);
+  letter-spacing: 0.02em;
+  padding: calc(12 * var(--hud-unit));
+  border-radius: calc(10 * var(--hud-unit));
+  border: none;
+  background: var(--accent, #3d7bfd);
+  color: #fff;
+}
+
+.clogin-submit:disabled {
+  opacity: 0.5;
+}
+
+.clogin-alt {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(10 * var(--hud-unit));
+}
+
+.clogin-alt button {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
+  background: none;
+  border: none;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.64));
+  padding: calc(6 * var(--hud-unit)) 0;
+  text-decoration: underline;
+}
+
+.clogin-gateway {
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
+  padding-top: calc(12 * var(--hud-unit));
+}
+
+/* ============================================================
+ * 新版 UI（定稿 `内部文档` 与
+ * `boarding-gate-v1.png`）：两道门与主屏同一套浅色语言。
+ *
+ * 这一段只改视觉层（底色、卡面、字色、控件形状），DOM 与相位机不变。
+ * 字号字重不在这里：由基线规则引用的 `--hud-type-*` 样式承担。
+ * 上面那些规则的布局（grid、min-height、二维码白底静区）继续生效，
+ * 这里只覆盖颜色与圆角。放在文件末尾靠顺序取胜，特异度与上面同级。
+ *
+ * 二维码那块的白底不许动：它是扫码器的静区（见上面的注释）。
+ * ============================================================ */
+
+.boarding,
+.clogin {
+  /* 舞台：灰白地图的同款底色 + 右上角一抹暖光，与登录定稿一致。 */
+  background:
+    radial-gradient(60% 55% at 88% 8%, rgba(255, 176, 60, 0.16), transparent 70%),
+    linear-gradient(180deg, #eef4fb 0%, #e6eef8 100%);
+  color: #1f3d63;
+  padding: calc(40 * var(--hud-unit));
+}
+
+.boarding-card,
+.clogin-card {
+  padding: calc(44 * var(--hud-unit)) calc(48 * var(--hud-unit));
+  border-radius: calc(32 * var(--hud-unit));
+  background: #fff;
+  border: 1px solid rgba(163, 200, 232, 0.55);
+  box-shadow: 0 calc(18 * var(--hud-unit)) calc(48 * var(--hud-unit)) rgba(70, 120, 170, 0.18);
+}
+.clogin-card { width: min(calc(720 * var(--hud-unit)), 100%); gap: calc(18 * var(--hud-unit)); text-align: center; }
+.boarding-card { width: min(calc(900 * var(--hud-unit)), 100%); gap: calc(20 * var(--hud-unit)); }
+
+.clogin-card h1 {
+  letter-spacing: 0.01em;
+  color: #1f3d63;
+}
+.boarding-card h1 {
+  text-align: center;
+  color: #1f3d63;
+}
+
+.clogin-hint,
+.boarding-hint {
+  color: #6c8bb0;
+  opacity: 1;
+}
+.clogin-hint { margin-bottom: calc(6 * var(--hud-unit)); }
+.boarding-hint { text-align: center; }
+
+/* 输入行：左对齐的标签 + 高白框（卡片整体居中，唯独表单左对齐才好填）。 */
+.clogin-field {
+  text-align: left;
+  gap: calc(10 * var(--hud-unit));
+  color: #1f3d63;
+}
+.clogin-field input,
+.boarding-code-row input {
+  height: calc(68 * var(--hud-unit));
+  padding: 0 calc(20 * var(--hud-unit));
+  border-radius: calc(16 * var(--hud-unit));
+  border: 1px solid rgba(163, 200, 232, 0.75);
+  background: #fff;
+  color: #1f3d63;
+}
+.clogin-field input:focus,
+.boarding-code-row input:focus {
+  outline: none;
+  border-color: #3d8fd6;
+  box-shadow: 0 0 0 calc(3 * var(--hud-unit)) rgba(61, 143, 214, 0.22);
+}
+
+/* 主行动：一屏只有一个，走 amber/cta 的渐变与暖投影。 */
+.clogin-submit,
+.boarding-code-row button {
+  height: calc(72 * var(--hud-unit));
+  padding: 0 calc(28 * var(--hud-unit));
+  border-radius: calc(20 * var(--hud-unit));
+  border: none;
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  color: #fff;
+  box-shadow: 0 calc(10 * var(--hud-unit)) calc(26 * var(--hud-unit)) rgba(255, 190, 90, 0.55);
+  cursor: pointer;
+}
+.clogin-submit:disabled,
+.boarding-code-row button:disabled,
+.boarding-members button:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+}
+
+/* 次级出口：文字按钮不用下划线，改成蓝色可点文字（定稿）。 */
+.clogin-alt {
+  justify-content: center;
+  gap: calc(48 * var(--hud-unit));
+  padding-top: calc(4 * var(--hud-unit));
+}
+.clogin-alt button {
+  color: #3d8fd6;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.clogin-gateway { border-top-color: rgba(150, 190, 225, 0.45); padding-top: calc(18 * var(--hud-unit)); }
+.clogin-error,
+.boarding-error { color: #c0392b; }
+
+/* 上车门的成员：定稿是竖排整行，不是并排小卡；一行一个人，触达更大。 */
+.boarding-members {
+  grid-template-columns: 1fr;
+  gap: calc(14 * var(--hud-unit));
+}
+.boarding-members button {
+  min-height: calc(96 * var(--hud-unit));
+  flex-direction: row;
+  align-items: center;
+  gap: calc(18 * var(--hud-unit));
+  padding: calc(18 * var(--hud-unit)) calc(24 * var(--hud-unit));
+  border-radius: calc(20 * var(--hud-unit));
+  border: 1px solid rgba(163, 200, 232, 0.55);
+  background: #fff;
+  color: #1f3d63;
+  cursor: pointer;
+}
+.boarding-members button:active {
+  border-color: #f5a623;
+  background: rgba(245, 166, 35, 0.08);
+}
+.boarding-name { }
+/* 角色是标签不是说明：蓝底片小胶囊，与站点卡上的「✓ 导览」同一族。 */
+.boarding-role {
+  margin-left: auto;
+  padding: calc(4 * var(--hud-unit)) calc(16 * var(--hud-unit));
+  border-radius: 999px;
+  background: #e3f0fb;
+  color: #3d8fd6;
+  opacity: 1;
+}
+/* 访客那一行是次级出口：虚线描边保留（上面的 !important），底色收成灰。 */
+.boarding-guest { background: #f6f9fd !important; }
+.boarding-guest .boarding-role { background: rgba(150, 190, 225, 0.2); color: #6c8bb0; }
+
+.boarding-steps { color: #6c8bb0; opacity: 1; }
+.boarding-device-id {
+  background: #f2f6fb;
+  color: #1f3d63;
+  border-radius: calc(14 * var(--hud-unit));
+}
+
+/* ── 两道门必须盖住主屏的顶栏与底栏 ─────────────────────────────
+ * 新版 UI 的顶栏是 `position: fixed; z-index: 95`、出行状态栏 60、演示条 99。
+ * 那两条栏属于已进入后的界面，不能出现在门上，所以门抬到 120
+ * （仍低于 HITL 的 200：有后果的确认任何时候都在最上面）。 */
+.boarding,
+.clogin { z-index: 120; }
+
+/* ── 登录门的舞台：程序化灰白地图 + 暖暖 ───────────────────────── */
+.clogin {
+  /* 把装饰底图的浅蓝压成定稿的灰白（`map/land` 那一族），只在这道门内生效。 */
+  --hud-map-base: #f1f4f8;
+  --hud-map-base-2: #e8eef5;
+  --hud-map-road: #ffffff;
+  --hud-map-road-minor: #f7fafc;
+  --hud-map-water: #d2dfe8;
+  --hud-map-green: #e4ece4;
+  --hud-map-block: #e9eff6;
+}
+.clogin-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  /* 失焦 + 压低对比：它是舞台不是内容，任何一处都不该被读。 */
+  filter: blur(calc(1.5 * var(--hud-unit)));
+  opacity: 0.95;
+}
+.clogin-stage .hud-map-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.clogin-mascot {
+  position: absolute;
+  left: calc(40 * var(--hud-unit));
+  bottom: 0;
+  z-index: 1;
+  height: min(46vh, calc(420 * var(--hud-unit)));
+  width: auto;
+  filter: drop-shadow(0 calc(14 * var(--hud-unit)) calc(30 * var(--hud-unit)) rgba(20, 50, 90, 0.28));
+  pointer-events: none;
+}
+.clogin-card { position: relative; z-index: 2; }

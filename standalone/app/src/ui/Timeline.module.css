@@ -1,0 +1,144 @@
+.timeline {
+  --dot: 12px;
+  /* 圆点圆心到行顶的距离：与时刻那一行文字的中线对齐。 */
+  --dot-top: calc(var(--row-pad) + 11px);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.comfortable {
+  --row-pad: var(--sa-space-3);
+}
+
+.compact {
+  --row-pad: var(--sa-space-3);
+  gap: var(--sa-space-1);
+}
+
+.item {
+  position: relative;
+}
+
+.comfortable .item + .item .row {
+  border-top: 1px solid var(--sa-color-divider);
+}
+
+.row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 20px 56px auto 1fr auto;
+  align-items: start;
+  column-gap: var(--sa-space-3);
+  padding: var(--row-pad) var(--sa-space-2) var(--row-pad) 0;
+  border: none;
+  border-radius: var(--sa-radius-sm);
+  background: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+button.row {
+  cursor: pointer;
+}
+
+button.row:hover {
+  background: var(--sa-color-surface-hover);
+}
+
+.active .row,
+.active button.row:hover {
+  background: var(--sa-color-brand-soft);
+  border-top-color: transparent;
+}
+
+.active + .item .row {
+  border-top-color: transparent;
+}
+
+/* ── 左侧的线与点 ── */
+.rail {
+  position: relative;
+  align-self: stretch;
+  margin: calc(-1 * var(--row-pad)) 0;
+}
+
+.rail::before,
+.rail::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 1px);
+  width: 2px;
+  background: var(--sa-color-brand-line);
+}
+
+.rail::before {
+  top: 0;
+  height: var(--dot-top);
+}
+
+.rail::after {
+  top: var(--dot-top);
+  bottom: 0;
+}
+
+.item:first-child .rail::before,
+.item:last-child .rail::after {
+  display: none;
+}
+
+.dot {
+  position: absolute;
+  top: calc(var(--dot-top) - var(--dot) / 2);
+  left: calc(50% - var(--dot) / 2);
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: 50%;
+  background: var(--sa-color-brand);
+  box-shadow: 0 0 0 3px var(--sa-color-surface);
+  z-index: 1;
+}
+
+.time {
+  font: var(--sa-text-body-strong);
+  line-height: 22px;
+  color: var(--sa-color-text);
+}
+
+.media {
+  display: block;
+}
+
+/* 没有配图时空出的那一列收成 0，不留缝。 */
+.row > .content:nth-child(3) {
+  grid-column: 3 / 5;
+}
+
+.content {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  font: var(--sa-text-subtitle);
+  line-height: 22px;
+  color: var(--sa-color-text);
+}
+
+.subtitle {
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-secondary);
+}
+
+.comfortable .subtitle {
+  font: var(--sa-text-body);
+  font-size: 13px;
+}
+
+.chevron {
+  align-self: center;
+  color: var(--sa-color-text-secondary);
+}

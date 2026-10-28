@@ -1,0 +1,229 @@
+/* 购车页。与档案页同一视觉语言：卡片、琥珀标注估算/默认值。 */
+
+.buy-page {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow-y: auto;
+/* iPhone 的状态栏 / 灵动岛：页壳贴着 inset:0，不避让时标题会被压在时钟与灵动岛底下。
+   车机端这两个 env() 恒为 0，写在这里不影响它。 */
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+  background: var(--hud-map-base);
+  color: #14293f;
+}
+.buy-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.buy-head h1 { font-size: var(--m-font-title); line-height: var(--m-lh-title); margin: 0; }
+.buy-close {
+  border: none;
+  background: transparent;
+  font-size: var(--m-font-body);
+  color: #4a6b8a;
+}
+.buy-hint { font-size: var(--m-font-body); line-height: var(--m-lh-body); color: #4a6b8a; }
+/* 读不到 ≠ 没有：故障要用不同颜色说出来，不能和"还没比过车"长一个样。 */
+.buy-hint--warn { color: #a5551a; }
+.buy-universe { font-size: var(--m-font-body); color: #5b7a96; margin: 0 0 12px; }
+
+.buy-section {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(12, 32, 56, 0.06);
+}
+.buy-section h2 { font-size: var(--m-font-title); margin: 0 0 10px; }
+.buy-section h3 { font-size: var(--m-font-body); margin: 16px 0 8px; }
+
+/* 宽表在小屏上横向滚动，页面本身不横向滚动。 */
+.buy-matrix-wrap { overflow-x: auto; }
+.buy-matrix { width: 100%; border-collapse: collapse; font-size: var(--m-font-body); }
+.buy-matrix th, .buy-matrix td {
+  padding: 8px 6px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #eef2f6;
+}
+.buy-matrix thead th { font-size: var(--m-font-body); }
+.buy-matrix th[scope="row"] { color: #5b7a96; font-weight: var(--m-weight-medium); white-space: nowrap; }
+.buy-val { display: block; font-weight: var(--m-weight-bold); }
+.buy-trim { display: block; font-size: var(--m-font-caption); color: #5b7a96; }
+/* 缺项显示"—"并注明：留空会被读成"两台一样"，而实际是没查到数据。 */
+.buy-missing { color: #93a7b8; }
+.buy-missing em { display: block; font-size: var(--m-font-caption); font-style: normal; }
+
+.buy-src {
+  margin-top: 2px;
+  padding: 1px 6px;
+  border: 1px solid #c9d8e5;
+  border-radius: 999px;
+  background: var(--m-card-bg);
+  font-size: var(--m-font-caption);
+  color: #4a6b8a;
+}
+.buy-src-pop {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f2f6fa;
+}
+.buy-src-doc { margin: 0 0 4px; font-size: var(--m-font-caption); color: #5b7a96; }
+.buy-src-text { margin: 0; font-size: var(--m-font-caption); line-height: var(--m-lh-caption); }
+
+.buy-fold {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed #c9d8e5;
+  border-radius: 10px;
+  background: var(--m-card-bg);
+  font-size: var(--m-font-body);
+  color: #4a6b8a;
+}
+.buy-elim { margin: 10px 0 0; padding-left: 18px; font-size: var(--m-font-body); }
+.buy-elim p { margin: 2px 0; line-height: 1.5; }
+.buy-dim {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #fdece0;
+  color: #a5551a;
+  font-size: var(--m-font-caption);
+}
+
+.buy-meta { font-size: var(--m-font-caption); color: #5b7a96; margin: 0 0 10px; line-height: var(--m-lh-caption); }
+.buy-items, .buy-assumptions { list-style: none; margin: 0; padding: 0; font-size: var(--m-font-body); }
+.buy-items li, .buy-assumptions li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eef2f6;
+}
+.buy-items li > span, .buy-assumptions li > span { flex: 1; color: #5b7a96; }
+.buy-total b { font-size: var(--m-font-metric); line-height: var(--m-lh-metric); }
+.buy-total em { display: block; font-size: var(--m-font-caption); font-style: normal; color: #5b7a96; }
+.buy-assumptions em { font-style: normal; font-size: var(--m-font-caption); }
+/* 系统补的默认值用琥珀标出来——它最容易与车主实际情况不符。 */
+.buy-src-default { color: #a5551a; }
+.buy-src-user { color: #2f7a4f; }
+.buy-assumptions button {
+  border: none;
+  background: transparent;
+  font-size: var(--m-font-caption);
+  color: #2f6ea5;
+}
+.buy-note { margin: 10px 0 0; font-size: var(--m-font-caption); line-height: var(--m-lh-caption); color: #5b7a96; }
+.buy-cta {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: #2f6ea5;
+  color: #fff;
+  font-size: var(--m-font-title);
+}
+
+/* 对话层里的入口按钮。放这里而不是底部导航——理由见 app/index.tsx 的注释。 */
+.buy-entry {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  padding: 6px 12px;
+  border: 1px solid #c9d8e5;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: var(--m-font-body);
+  color: #2f6ea5;
+}
+
+/* ── 配置对比与金融分区 ─────────────────────────────────────── */
+
+/** 对齐口径写在表头上方：不写清楚会被读成"拿顶配比入门"。 */
+.buy-align {
+  margin: 0 0 8px;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  color: var(--hud-text-muted);
+}
+.buy-align b {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-weight: var(--m-weight-bold);
+}
+
+/** 配置列的表头分两行：车型小字在上，配置名在下——列多时也能认出属于哪款车。 */
+.buy-trim-model {
+  display: block;
+  font-size: var(--m-font-caption);
+  font-weight: var(--m-weight-regular);
+  opacity: 0.65;
+}
+
+/** 逐项差异。这一段的数字都是算出来的，视觉上与"抽出来的参数"区分开。 */
+.buy-diffs {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.buy-diffs > li {
+  padding: 6px 0;
+  border-top: 1px solid var(--hud-divider);
+  font-size: var(--m-font-caption);
+}
+.buy-diffs > li > b {
+  display: block;
+  margin-bottom: 3px;
+  font-size: var(--m-font-caption);
+}
+.buy-diff {
+  display: inline-block;
+  margin: 0 10px 2px 0;
+  color: var(--hud-text-muted);
+}
+.buy-diff--calc {
+  color: #2563eb;
+}
+
+/** 免责只出现一次，且不抢实质内容的视觉权重。 */
+.buy-note--legal {
+  margin-top: 14px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+}
+
+/* ============================================================
+ * 新版 UI 视觉层（定稿 `内部文档`）：
+ * 页底色与卡片对齐设计系统，蓝灰色取 Token 同值。
+ * ============================================================ */
+.buy-page { background: var(--m-page-bg); color: var(--hud-text); }
+.buy-head h1 { font-size: var(--m-font-title); font-weight: var(--m-weight-bold); }
+.buy-close { color: #3d8fd6; font-weight: var(--m-weight-bold); }
+.buy-section {
+  border-radius: var(--m-radius-card);
+  border: 1px solid var(--hud-card-border);
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
+}
+.buy-hint, .buy-universe, .buy-trim, .buy-meta, .buy-note, .buy-src-doc { color: #6c8bb0; }
+.buy-hint--warn { color: #b8730f; }
+.buy-missing { color: #9bb1d8; }
+.buy-cta {
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  border: none;
+  color: #fff;
+  font-weight: var(--m-weight-bold);
+  box-shadow: 0 8px 20px rgba(255, 190, 90, 0.45);
+}

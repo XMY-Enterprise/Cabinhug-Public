@@ -1,0 +1,118 @@
+//! 启动装配。
+//!
+//! 只做"没有它 App 跑不起来"的事：消息缓存目录与 SQLite 打开。
+//! 其余（会话引导、流启动）由 WebView 侧按需 invoke ——
+//! 放在这里会让启动阻塞在网络上，而手机端冷启动时网络往往还没就绪。
+
+use std::sync::Arc;
+
+use cabinhug_core::cache::MessageCache;
+use cabinhug_core::location::LocationStore;
+use tauri::{App, Manager};
+
+use crate::events::StreamState;
+
+pub fn init(app: &App) -> Result<(), Box<dyn std::error::Error>> {
+    // 端上消息缓存（§2.2 C5）：app 数据目录，**非权威源**，可安全清空。
+    let dir = app.path().app_data_dir()?;
+    std::fs::create_dir_all(&dir)?;
+    let cache = MessageCache::open(&dir.join("messages.sqlite"))?;
+    app.manage(Arc::new(StreamState::new(cache)));
+    // 网关连接设置：iOS 没有环境变量，地址从这里来（见 `crate::settings` 文件头）。
+    // **必须先于一切网关调用初始化**——晚了的话首批请求会打默认 localhost，
+    // 而手机上的 localhost 是手机自己，症状是"登录不上"而不是"地址没配"。
+    crate::settings::init(dir.join("gateway-settings.json"));
+    /*
+     * iOS 本地网络授权的触发点。放在网关地址初始化之后、任何网关请求之前：
+     * 授权框要在第一条局域网请求前弹出来，否则那条请求会静默拿到 EHOSTUNREACH。
+     * 立即返回，发送在独立线程；桌面上是空函数。
+     */
+    crate::local_network::prime();
+    /*
+     * 网络诊断的落盘位置。放在这里而不是命令内部：
+     * `net_diag` 是个 `#[tauri::command]` 纯函数，拿不到 `App`。
+     * `autorun_if_enabled` 只在容器里存在 `netdiag.on` 时才真的去探测——
+     * 正常启动一个包都不发。
+     */
+    crate::commands::netdiag::init(dir.clone());
+    crate::commands::netdiag::autorun_if_enabled();
+
+    /*
+     * iOS 音频会话类别设成 `playback`。手机端没有本地播报（F-02-12「车机播报 / 手机静默」），
+     * 这里仍然设它是因为哨兵切 `playAndRecord` 后归还时
+     * 切回的就是这一档——启动态与归还态一致，界面音效不会在第一次长按之后突然变响。
+     * 共享层这个函数幂等且非 iOS 上是 no-op。
+     */
+    if let Err(e) = cabinhug_media::release_recording_session() {
+        eprintln!("[audio] 设置音频会话为 playback 失败：{e}");
+    }
+
+    /*
+     * 让 WebView 铺满整块屏，而不是只铺安全区之内。
+     *
+     * WKWebView 的 `scrollView.contentInsetAdjustmentBehavior` 留在默认 `.automatic` 时，
+     * UIKit 把安全区当作 scrollView 的 adjustedContentInset，WebKit 只在剩下的高度里排版：
+     * 布局视口比屏幕矮的量恰好等于上下安全区之和，冷启动第一帧就如此，与键盘无关；
+     * `env()` 仍能读到安全区。表现为 HUD 底部露出一条 body 背景色，`position: fixed`
+     * 的底部导航跟着上浮。wry 0.55 建 WebView 时没有动这个值（只设了 bounces=false）。
+     *
+     * 设成 `.never`（枚举值 2）之后 WebKit 按整块视图排版，安全区仍由页面自己用
+     * `env(safe-area-inset-*)` 避让。
+     * 走 `with_webview` 拿裸指针发一条 objc 消息，不 patch wry；桌面端没有这个问题，
+     * 只在 iOS 编译。
+     */
+    #[cfg(target_os = "ios")]
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.with_webview(|pw| unsafe {
+            use objc2::msg_send;
+            use objc2::runtime::AnyObject;
+            let wk = pw.inner() as *mut AnyObject;
+            if wk.is_null() {
+                return;
+            }
+            let scroll: *mut AnyObject = msg_send![wk, scrollView];
+            if scroll.is_null() {
+                return;
+            }
+            // UIScrollViewContentInsetAdjustmentBehavior.never
+            let _: () = msg_send![scroll, setContentInsetAdjustmentBehavior: 2isize];
+        });
+    }
+    // 定位授权与地图视图。**与消息缓存分开一个文件**：清缓存是安全动作
+    // （非权威源可随时删），而清掉它会把用户的授权选择和地图视图一起抹掉。
+    app.manage(Arc::new(LocationStore::open(dir.join("location.json"))));
+    // 设备注册实例 id。落普通文件而不是安全存储：它是标识符不是凭证，
+    // 泄露它换不到任何东西，但它必须**跨重启稳定**——不稳定等于每次启动都是新设备。
+    cabinhug_core::device::init(dir.clone());
+    /*
+     * 哨兵监听总开关：跨重启保持，**默认关**。
+     *
+     * 必须在 `sentinel_start` 之前载入——那条命令由 WebView 引导时调，
+     * 而循环的 `switch_on` 初值就是这个静态量。晚一步的表现是
+     * "设置里明明是关的，开机头几秒麦克风还是开着"。
+     */
+    crate::commands::profile::load_sentinel_pref(app.handle());
+    /*
+     * 凭证保鲜（与车机端一致）。
+     *
+     * access token 只活 15 分钟；不刷新的话隔夜再开，从钥匙串读回的是过期凭证：
+     * 所有请求 401，SSE 流风暴式重连。冷启动先刷一次，此后每 10 分钟一次。
+     *
+     * 用 std 线程 + `block_on` 而不是 tokio：本 crate 没有 tokio 依赖，
+     * 为一个定时器加依赖要立 ACR（车机端有 tokio 是既有事实）。
+     * 没登录过时 keep_fresh 返回 false 且不做任何事，不是错误。
+     */
+    // 退避与车机端同一形状：失败 15 秒起翻倍，成功回到 10 分钟。
+    // 手机上"点开 app 时还在切网"比开发机更常见。
+    std::thread::spawn(|| {
+        const OK_GAP: u64 = 600;
+        let mut gap = OK_GAP;
+        loop {
+            let (base_url, _) = crate::settings::gateway();
+            let ok = tauri::async_runtime::block_on(cabinhug_net::keep_fresh(&base_url));
+            gap = if ok { OK_GAP } else { (if gap >= OK_GAP { 15 } else { gap * 2 }).min(OK_GAP) };
+            std::thread::sleep(std::time::Duration::from_secs(gap));
+        }
+    });
+    Ok(())
+}

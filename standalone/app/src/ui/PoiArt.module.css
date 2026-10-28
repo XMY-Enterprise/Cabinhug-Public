@@ -1,0 +1,56 @@
+.art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--sa-gradient-scene);
+}
+
+/* 地平线：一抹浅绿压在底部，贴纸才像"站"在地上。 */
+.art::after {
+  content: "";
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: -38%;
+  height: 60%;
+  border-radius: 50%;
+  background: var(--sa-color-scene-ground);
+}
+
+.sticker {
+  position: relative;
+  z-index: 1;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(31, 61, 99, 0.18));
+}
+
+.thumb {
+  width: 64px;
+  height: 56px;
+  border-radius: var(--sa-radius-sm);
+}
+
+.thumb .sticker {
+  height: 48px;
+}
+
+.hero {
+  width: 100%;
+  height: 132px;
+  border-radius: var(--sa-radius-md);
+}
+
+.hero .sticker {
+  height: 116px;
+}
+
+.cover {
+  width: 100%;
+  height: 168px;
+  border-radius: var(--sa-radius-md);
+}
+
+.cover .sticker {
+  height: 148px;
+}

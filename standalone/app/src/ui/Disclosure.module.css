@@ -1,0 +1,29 @@
+.section {
+  border: 1px solid var(--sa-color-border);
+  border-radius: var(--sa-radius-sm);
+  background: var(--sa-color-surface);
+}
+
+.head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sa-space-2);
+  padding: var(--sa-space-2) var(--sa-space-3);
+  border: none;
+  background: none;
+  color: var(--sa-color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.title {
+  flex: 1;
+  font: var(--sa-text-body-strong);
+}
+
+.body {
+  padding: 0 var(--sa-space-3) var(--sa-space-3);
+  font: var(--sa-text-body);
+  color: var(--sa-color-text-secondary);
+}

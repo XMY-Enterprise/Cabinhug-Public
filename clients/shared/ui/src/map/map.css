@@ -1,0 +1,150 @@
+/* 真实地图底图
+ *
+ * 与程序化底图共用 .hud-map-backdrop 的定位与层级（hud.css 已定义），
+ * 这里只补两件它没有的事：
+ *   1. 未就绪时**完全不可见**——半成品的地图容器（灰底 + 高德 logo）比
+ *      程序化底图难看得多，宁可等它就绪再显现；
+ *   2. 就绪后淡入，避免底图在用户眼前"跳"一下。
+ */
+
+.hud-map-amap {
+  opacity: 0;
+  transition: opacity 320ms ease-out;
+  /*
+   * 地图接受交互（缩放与平移）。
+   *
+   * 生活环、提示卡、助手都是独立的上层元素，各自照常吃到自己的事件；
+   * 这一层放开只影响它们没盖住的空白区域。
+   * 构造参数里的 dragEnable/zoomEnable 单独打开没有用——事件到不了容器，
+   * 鼠标仍然拖不动。两处必须一起改。
+   */
+  pointer-events: auto;
+}
+
+.hud-map-amap[data-ready="1"] {
+  opacity: 1;
+}
+
+/* 高德的版权与 logo 必须保留（服务条款要求），但按 Brief §6 压到最低视觉优先级。 */
+.hud-map-amap .amap-copyright,
+.hud-map-amap .amap-logo {
+  opacity: 0.45;
+  transform: scale(0.85);
+  transform-origin: left bottom;
+}
+
+/* ---------- 状态切换的交叉淡入 ----------
+ *
+ * 切天/换行程时新旧两代标记会**同时**在图上，各自按 data-gen 被设成 0 或 1，
+ * 补间由这条 transition 完成。时长与 AmapTripLayer 的 FADE_MS 对齐，
+ * 改一处要改两处——CSS 拿不到那个常量。
+ *
+ * 只写 opacity：胶囊的 transform 带着贴边夹持的 --clamp-x，
+ * 一起补间会让它在夹持生效的那一帧横向滑一下，反而更晃。
+ */
+.hud-tripmark,
+.hud-tripmark__dot,
+.hud-tripmark__runner {
+  transition: opacity 420ms ease-out;
+}
+
+/* ---------- 跟车车标 ----------
+ *
+ * 它与流动粒子（`__runner`）是两回事，样式上必须一眼分得开：
+ * 粒子是**装饰**，沿线循环跑；车标是「我们说车此刻在这」。
+ * 长得像的话，屏幕上会有两个亮点各跑各的，谁也说不清哪个是车。
+ *
+ * 朝向由 JS 写 `--heading`（车头指向下一个采样点）。没有朝向时它是 0，
+ * 圆形本体看不出差别——**不拿一个默认朝向去补**，那会指向正北，
+ * 与实际行驶方向无关，比不指更误导。
+ */
+.hud-navcar {
+  position: relative; /* ::before 的那枚车头尖按它定位 */
+  width: calc(30 * var(--hud-unit));
+  height: calc(30 * var(--hud-unit));
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 92%);
+  box-shadow:
+    0 0 0 calc(3 * var(--hud-unit)) rgb(255 176 32 / 35%),
+    0 calc(4 * var(--hud-unit)) calc(12 * var(--hud-unit)) rgb(0 0 0 / 28%);
+  /* 车头方向那一枚小尖：整体旋转，本体是圆所以只有尖在动。 */
+  rotate: var(--heading, 0deg);
+}
+
+.hud-navcar::before {
+  content: "";
+  position: absolute;
+  top: calc(-7 * var(--hud-unit));
+  width: 0;
+  height: 0;
+  border-left: calc(6 * var(--hud-unit)) solid transparent;
+  border-right: calc(6 * var(--hud-unit)) solid transparent;
+  border-bottom: calc(9 * var(--hud-unit)) solid rgb(255 176 32);
+}
+
+.hud-navcar__dot {
+  width: calc(12 * var(--hud-unit));
+  height: calc(12 * var(--hud-unit));
+  border-radius: 50%;
+  background: rgb(255 154 0);
+}
+
+/* 「回到全程」：用户自己动过镜头（拖动/缩放/点地点聚焦）之后才出现，
+   是镜头的唯一回程入口，所以位置必须保证可见、可点。
+   不贴右下角：横屏 1280×720 下那里被电量条盖住（`elementFromPoint` 取到的是
+   `.hud-energy__value`），看不见也点不到。
+   贴右上：横屏那一带只有底图（提示卡从 y≈75 起、逐日页签在竖屏才占顶部），
+   且与下方的提示卡对齐成一列，读起来就是"地图自己的控件"。
+
+   手机右上角是状态栏与灵动岛：32 个竖屏单位约 29pt，而安全区 62pt，
+   不加 `env(safe-area-inset-top)` 时按钮会落在 WiFi/电量图标底下。 */
+.hud-map-recenter {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
+  position: absolute;
+  right: calc(32 * var(--hud-unit));
+  top: calc(32 * var(--hud-unit) + env(safe-area-inset-top));
+  z-index: 3;
+  padding: calc(12 * var(--hud-unit)) calc(22 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  border-radius: 999px;
+  background: var(--hud-card-bg);
+  box-shadow: var(--hud-card-shadow);
+  color: var(--hud-text);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-map-amap {
+    transition: none;
+  }
+  /* 省电/无障碍偏好下不做交叉淡入：直接切换即可，两代仍然不会同时可见。 */
+  .hud-tripmark,
+  .hud-tripmark__dot,
+  .hud-tripmark__runner {
+    transition: none;
+  }
+}
+
+/*
+ * 非选中天的淡出：抽屉里选了某一天时，别的天退成灰色半透明。
+ *
+ * **不是隐藏**：整程的形状要还在，否则"这一程有几天、别的天在哪"就没了。
+ * 灰度 + 半透明两样一起用——只降不透明度的话，琥珀序号徽标在灰白底图上仍然跳眼。
+ * 圆点一并淡出，不然会剩下一串"没有胶囊的点"。
+ */
+.hud-tripmark--dim,
+.hud-tripmark__dot--dim {
+  opacity: 0.32;
+  filter: grayscale(1);
+  transition:
+    opacity 220ms ease,
+    filter 220ms ease;
+}
+.hud-tripmark {
+  transition:
+    opacity 220ms ease,
+    filter 220ms ease;
+}

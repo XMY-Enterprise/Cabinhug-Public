@@ -1,0 +1,308 @@
+/**
+ * `energy_gap` 补能缺口测算（F-54-02，AC-54-3/5/6）。
+ *
+ * 三条负向断言是重点，这三类错误都不会报错：
+ *  - 写死的能耗常数（"500 公里 80 升"是举例，不是可硬编码的值）；
+ *  - 够的时候硬塞一次停靠（同行的老人小孩要多等一次）；
+ *  - 单位静默换算（升与百分之几之间没有通用换算，换一个就是凭空捏造缺口）。
+ */
+
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import fs from "node:fs";
+
+import { computeEnergyGap, energyGapTool, setEnergyConsumptionLookup } from "../src/energy-gap";
+import { ToolError } from "../src/external";
+import { getTool, listExposableForMcp, listForAgent } from "../src/registry";
+
+const measured = (value: number, unit: "L" | "%" = "L") =>
+  ({ value, unit, source: "measured" as const, sampleSize: 3, windowDays: 180 });
+
+describe("energy_gap：够 / 不够 / 恰好", () => {
+  it("不够时给出需求、余量、缺口，且缺口为正", () => {
+    const r = computeEnergyGap({
+      distanceKm: 500,
+      consumption: measured(8.6),
+      currentLevel: { value: 20, unit: "L" },
+    });
+    assert.equal(r.demand, 43);
+    assert.equal(r.remaining, 20);
+    assert.equal(r.gap, 23);
+    assert.equal(r.sufficient, false);
+    assert.equal(r.unit, "L");
+  });
+
+  it("够的时候补能次数是 0，不是「保险起见来一次」", () => {
+    const r = computeEnergyGap({
+      distanceKm: 200,
+      consumption: measured(8.6),
+      currentLevel: { value: 50, unit: "L" },
+    });
+    assert.equal(r.sufficient, true);
+    assert.equal(r.refillCount, 0);
+    assert.ok((r.gap ?? 0) <= 0);
+    assert.ok(r.basis.some((b) => /多 \d/.test(b)), "要说清还富余多少");
+  });
+
+  it("恰好持平算够（gap === 0）", () => {
+    const r = computeEnergyGap({
+      distanceKm: 100,
+      consumption: measured(10),
+      currentLevel: { value: 10, unit: "L" },
+    });
+    assert.equal(r.gap, 0);
+    assert.equal(r.sufficient, true);
+    assert.equal(r.refillCount, 0);
+  });
+
+  it("知道一次能补多少才给次数；不知道就明说不知道", () => {
+    const base = {
+      distanceKm: 900,
+      consumption: measured(8.6),
+      currentLevel: { value: 10, unit: "L" as const },
+    };
+    const withCap = computeEnergyGap({ ...base, capacity: { value: 50, unit: "L" } });
+    assert.equal(withCap.refillCount, 2, "缺 67.4 升、一次 50 升 → 两次");
+
+    const without = computeEnergyGap(base);
+    assert.equal(without.refillCount, undefined);
+    assert.ok(without.basis.some((b) => b.includes("没法说要补几次")));
+  });
+});
+
+describe("energy_gap：缺什么就说缺什么，不给伪数值", () => {
+  it("没有能耗口径 → 不给需求量，只说缺什么", () => {
+    const r = computeEnergyGap({ distanceKm: 500, currentLevel: { value: 20, unit: "L" } });
+    assert.equal(r.demand, undefined);
+    assert.equal(r.gap, undefined);
+    assert.deepEqual(r.missing, ["这辆车的百公里能耗（⑥ 实测与厂商标称都拿不到）"]);
+  });
+
+  it("没有余量 → 给需求量与区间，但不给缺口、不猜够不够", () => {
+    const r = computeEnergyGap({ distanceKm: 500, consumption: measured(8.6) });
+    assert.equal(r.demand, 43);
+    assert.ok(r.demandRange);
+    assert.equal(r.gap, undefined);
+    assert.equal(r.sufficient, undefined, "不知道够不够就是不知道");
+    assert.deepEqual(r.missing, ["当前能源余量"]);
+  });
+
+  it("里程非法 → 什么都不算", () => {
+    assert.deepEqual(computeEnergyGap({ distanceKm: 0 }).missing, ["本次行程里程"]);
+  });
+
+  it("单位混用直接抛，不静默换算（升与百分之几之间没有通用换算）", () => {
+    assert.throws(
+      () =>
+        computeEnergyGap({
+          distanceKm: 500,
+          consumption: measured(8.6, "L"),
+          currentLevel: { value: 40, unit: "%" },
+        }),
+      (e: unknown) => {
+        assert.ok(e instanceof ToolError);
+        assert.equal(e.category, "invalid");
+        assert.match(e.message, /不做静默换算/);
+        return true;
+      },
+    );
+  });
+});
+
+describe("energy_gap：口径与区间", () => {
+  it("实测与标称给出不同宽度的区间，且标称必须说出是标称", () => {
+    const m = computeEnergyGap({ distanceKm: 500, consumption: measured(8.6) });
+    const r = computeEnergyGap({
+      distanceKm: 500,
+      consumption: { value: 8.6, unit: "L", source: "rated" },
+    });
+    const width = (x?: [number, number]) => (x ? x[1] - x[0] : 0);
+    assert.ok(width(r.demandRange) > width(m.demandRange), "标称的区间必须更宽");
+    assert.ok(r.basis.some((b) => b.includes("不是你的实测值")));
+    assert.ok(m.basis.some((b) => b.includes("实测")));
+  });
+
+  it("纯电走百分比，单位一路带到底", () => {
+    const r = computeEnergyGap({
+      distanceKm: 300,
+      consumption: measured(25, "%"),
+      currentLevel: { value: 60, unit: "%" },
+      capacity: { value: 100, unit: "%" },
+    });
+    assert.equal(r.unit, "%");
+    assert.equal(r.demand, 75);
+    assert.equal(r.gap, 15);
+    assert.equal(r.refillCount, 1);
+  });
+
+  it("永远给区间，不给一个点", () => {
+    const r = computeEnergyGap({ distanceKm: 500, consumption: measured(8.6) });
+    assert.ok(r.demandRange && r.demandRange[0] < r.demandRange[1]);
+  });
+});
+
+describe("energy_gap：一个能耗常数都不许写死（AC-54-3）", () => {
+  it("真实路径里没有裸露的能耗/需求量数字常量", () => {
+    const src = fs.readFileSync(new URL("../src/energy-gap.ts", import.meta.url), "utf8");
+    /*
+     * 只扫 `computeEnergyGap` 这一段，mock 里的数字是允许的：
+     * 四件套会把它标成 `source.kind = "mock"`，不会被当成真实数据
+     * （`usage_profile` 的 mock 同样给了具体的日均里程）。
+     * 要挡的是真实路径上写死的能耗，那种数字会被当真。
+     */
+    const begin = src.indexOf("export function computeEnergyGap");
+    const end = src.indexOf("export const energyGapTool");
+    assert.ok(begin > 0 && end > begin);
+    const body = src
+      .slice(begin, end)
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("*") && !l.trimStart().startsWith("//"))
+      .join("\n");
+    // 需求描述里那句"500 公里 80 升"是举例，不应出现在实现里。
+    for (const needle of ["80", "500", "16", "7.9", "8.6"]) {
+      assert.equal(
+        new RegExp(`(?<![.\\d])${needle}(?![.\\d])`).test(body),
+        false,
+        `真实路径里不该出现常数 ${needle}`,
+      );
+    }
+  });
+
+  it("换一台车、换一段里程，结果就不同（说明它真的在算）", () => {
+    const a = computeEnergyGap({ distanceKm: 500, consumption: measured(8.6) }).demand;
+    const b = computeEnergyGap({ distanceKm: 500, consumption: measured(12.4) }).demand;
+    const c = computeEnergyGap({ distanceKm: 300, consumption: measured(8.6) }).demand;
+    assert.notEqual(a, b);
+    assert.notEqual(a, c);
+  });
+});
+
+describe("energy_gap / refuel_log：ACL 与 MCP 边界", () => {
+  it("energy_gap 给出行/行车/用车/supervisor，不外泄给购车与座舱", () => {
+    for (const a of ["trip", "drive", "ownership", "supervisor"] as const) {
+      assert.ok(listForAgent(a).some((t) => t.name === "energy_gap"), `${a} 应该有`);
+    }
+    for (const a of ["buying", "cabin", "test-drive"] as const) {
+      assert.equal(listForAgent(a).some((t) => t.name === "energy_gap"), false, `${a} 不该有`);
+    }
+  });
+
+  it("refuel_log 给 ownership/trip/drive", () => {
+    for (const a of ["ownership", "trip", "drive"] as const) {
+      assert.ok(listForAgent(a).some((t) => t.name === "refuel_log"), `${a} 应该有`);
+    }
+    assert.equal(listForAgent("buying").some((t) => t.name === "refuel_log"), false);
+  });
+
+  it("两者都不对外经 MCP 暴露", () => {
+    const names = listExposableForMcp().map((t) => t.name);
+    assert.equal(names.includes("energy_gap"), false);
+    assert.equal(names.includes("refuel_log"), false);
+  });
+
+  it("注册表 schema 挡得住负数与零", () => {
+    const reg = getTool("refuel_log");
+    assert.ok(reg);
+    assert.equal(reg.schema.safeParse({ userId: "u", liters: -1, odometerKm: 100 }).success, false);
+    assert.equal(reg.schema.safeParse({ userId: "u", liters: 40, odometerKm: 0 }).success, false);
+    assert.equal(reg.schema.safeParse({ userId: "u", liters: 40, odometerKm: 186000 }).success, true);
+  });
+});
+
+describe("energy_gap：mock 给「不够」而不是「够」", () => {
+  it("够的那条分支不需要下游做事，用它当 mock 等于没测到贯通", async () => {
+    const { data } = await energyGapTool.call({ distanceKm: 500 } as never, {
+      sessionId: "s",
+      agent: "trip",
+      mode: "mock",
+    });
+    assert.equal(data.sufficient, false);
+    assert.ok((data.gap ?? 0) > 0);
+  });
+});
+
+/**
+ * 能耗口径不由模型填。
+ *
+ * 模型可能把 ⑥ 的满电续航（如 428km）当成百公里能耗，或把整段总电耗换算成 93.46%/100km，
+ * 后者能通过单位闸门，得出四倍的需求量。所以这里锁住三件事：
+ * 这一栏进不了 schema、续航当能耗会被拦、注入的那份胜过入参。
+ */
+describe("energy_gap：能耗口径不经模型", () => {
+  it("schema 里没有 consumption 这一栏，模型填了也进不来", () => {
+    const reg = getTool("energy_gap");
+    assert.ok(reg);
+    const parsed = reg.schema.safeParse({
+      distanceKm: 400,
+      consumption: { value: 428, unit: "L", source: "measured" },
+      currentLevel: { value: 37.6, unit: "%" },
+    });
+    assert.equal(parsed.success, true, "多给的栏位被丢掉，不该整条拒绝");
+    assert.equal(
+      "consumption" in (parsed.success ? (parsed.data as object) : {}),
+      false,
+      "consumption 不该出现在解析结果里",
+    );
+  });
+
+  it("满电续航被当成能耗：两种单位都拦下", () => {
+    for (const unit of ["L", "%"] as const) {
+      assert.throws(
+        () =>
+          computeEnergyGap({
+            distanceKm: 400,
+            consumption: { value: 428, unit, source: "measured" },
+            currentLevel: { value: 37.6, unit },
+          }),
+        (e: unknown) => e instanceof ToolError && e.category === "invalid",
+        `${unit} 这一档没拦住`,
+      );
+    }
+  });
+
+  it("上界拦不住「整段总量当百公里量」，只能靠这一栏不经模型", () => {
+    // 93.46%/100km 落在 100 以内，闸门放行，结果是四倍的需求量；阈值本身不足以拦住这一类。
+    const r = computeEnergyGap({
+      distanceKm: 400,
+      consumption: { value: 93.46, unit: "%", source: "measured" },
+      currentLevel: { value: 37.6, unit: "%" },
+    });
+    assert.equal(r.demand, 373.8);
+  });
+
+  it("注入的口径胜过入参，且区间按 measured 收窄", async () => {
+    setEnergyConsumptionLookup(() => ({
+      value: 23.4,
+      unit: "%",
+      source: "measured",
+      sampleSize: 50,
+      windowDays: 30,
+    }));
+    try {
+      const { data } = await energyGapTool.call(
+        // 入参里塞一个错的：注入存在时它不生效。
+        { distanceKm: 400, consumption: { value: 93.46, unit: "%", source: "measured" }, currentLevel: { value: 37.6, unit: "%" } } as never,
+        { sessionId: "s", turnId: "t", agent: "ownership", mode: "real" },
+      );
+      assert.equal(data.demand, 93.6, "400km × 23.4%/100km");
+      assert.equal(data.sufficient, false);
+      assert.ok(data.basis.some((b) => b.includes("50 个样本")));
+    } finally {
+      setEnergyConsumptionLookup(undefined);
+    }
+  });
+
+  it("没注入就不编一个数：只说缺什么", async () => {
+    setEnergyConsumptionLookup(() => undefined);
+    try {
+      const { data } = await energyGapTool.call(
+        { distanceKm: 400, currentLevel: { value: 37.6, unit: "%" } } as never,
+        { sessionId: "s", turnId: "t", agent: "ownership", mode: "real" },
+      );
+      assert.equal(data.demand, undefined);
+      assert.ok(data.missing?.some((m) => m.includes("百公里能耗")));
+    } finally {
+      setEnergyConsumptionLookup(undefined);
+    }
+  });
+});

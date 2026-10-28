@@ -1,0 +1,139 @@
+/*
+ * 单机版设计 Token（内部文档 四张定稿图）。组件的 CSS Module 只引用这里的变量，不写字面色值、字号与圆角。
+ *
+ * 色值沿用手机端设计系统（内部文档）已有的那几支——深蓝文字、浅蓝描边、
+ * 品牌橙渐变、状态三色；这里只按桌面补齐面层级、字阶、间距与布局尺寸。首版只有浅色：
+ * 要出深色时在 `[data-theme="dark"]` 下重绑「颜色」一节即可，组件不用改。
+ */
+
+:root {
+  /* ── 颜色 · 底与面 ───────────────────────────── */
+  /* 舞台底：地图未就绪时的垫底、全屏行程页的页面底。 */
+  --sa-color-canvas: #eef4fa;
+  --sa-color-surface: #ffffff;
+  /* 压在地图上的浮层：比纯白透一点，边缘才不像贴上去的纸片。 */
+  --sa-color-surface-float: rgba(255, 255, 255, 0.96);
+  /* 卡内嵌条：面包屑条、日程头、提示条的衬底。 */
+  --sa-color-surface-inset: #f4f8fc;
+  --sa-color-surface-hover: #f1f6fc;
+  --sa-color-scrim: rgba(20, 40, 66, 0.45);
+
+  /* ── 颜色 · 文字 ─────────────────────────────── */
+  --sa-color-text: #1f3d63;
+  --sa-color-text-secondary: #6c8bb0;
+  --sa-color-text-tertiary: #9bb1d8;
+  --sa-color-text-inverse: #ffffff;
+
+  /* ── 颜色 · 线 ───────────────────────────────── */
+  --sa-color-border: rgba(163, 200, 232, 0.55);
+  --sa-color-border-strong: rgba(120, 166, 212, 0.7);
+  --sa-color-divider: rgba(150, 190, 225, 0.35);
+
+  /* ── 颜色 · 品牌橙（主行动、选中、序号、路线） ─── */
+  --sa-color-brand: #ff8a00;
+  --sa-color-brand-strong: #ee7300;
+  --sa-gradient-brand: linear-gradient(90deg, #ff8a00 0%, #ffa51f 100%);
+  /* 选中行、用户气泡、导航选中：橙的一层薄底。 */
+  --sa-color-brand-tint: rgba(255, 138, 0, 0.12);
+  /* 次级选中（2 倍宽的「全部 3 天」、天页签）：不透明的浅橙，叠在任何底上颜色都一样。 */
+  --sa-color-brand-soft: #fff1df;
+  --sa-color-brand-line: rgba(255, 138, 0, 0.32);
+
+  /* ── 颜色 · 信息蓝（链接、标签、说明条） ────────── */
+  --sa-color-info: #3d8fd6;
+  --sa-color-info-soft: #eaf3fd;
+  --sa-color-info-line: rgba(61, 143, 214, 0.35);
+
+  /* ── 颜色 · 状态 ─────────────────────────────── */
+  --sa-color-ok: #1e9e6a;
+  --sa-color-ok-soft: #e4f7ed;
+  --sa-color-warn: #b8730f;
+  --sa-color-warn-soft: #fff5e6;
+  --sa-color-danger: #c0392b;
+  --sa-color-danger-soft: rgba(192, 57, 43, 0.1);
+  --sa-color-focus: rgba(61, 143, 214, 0.55);
+
+  /* ── 颜色 · 配图衬底（地点贴纸下的天空与地面） ──── */
+  --sa-gradient-scene: linear-gradient(180deg, #d6eafb 0%, #eef6fd 58%, #fdf3e4 100%);
+  --sa-color-scene-ground: rgba(170, 214, 170, 0.45);
+  /* 缩略图的示意底：水色与绿地两块，只给"这是一张图"的感觉，不画真实地物。 */
+  --sa-gradient-minimap: radial-gradient(120% 90% at 0% 100%, #d8ecd4 0%, transparent 55%),
+    linear-gradient(135deg, #e9f2fb 0%, #dcebf8 100%);
+
+  /* ── 字阶 ──────────────────────────────────────
+   * 七档命名样式，组件写 `font: var(--sa-text-*)`，不自己拼字号与字重。
+   * 桌面不跟窗口缩放：信息量靠面板宽度承载，不靠放大字号。
+   */
+  --sa-font-family: var(--font-ui, system-ui, sans-serif);
+  /* 行程主标题「上海 → 杭州」。 */
+  --sa-text-display: 700 30px/1.2 var(--sa-font-family);
+  /* 面板标题「行程详情」、全屏页的天标题。 */
+  --sa-text-headline: 700 22px/1.3 var(--sa-font-family);
+  /* 区块标题「Day 2 · 10/25 周日」、景点详情名。 */
+  --sa-text-title: 700 18px/1.35 var(--sa-font-family);
+  /* 行标题：时间轴上的地点名、卡片名。 */
+  --sa-text-subtitle: 600 16px/1.4 var(--sa-font-family);
+  --sa-text-body: 400 14px/1.6 var(--sa-font-family);
+  --sa-text-body-strong: 600 14px/1.6 var(--sa-font-family);
+  /* 控件、页签、导航字。 */
+  --sa-text-label: 500 13px/1.35 var(--sa-font-family);
+  --sa-text-caption: 400 12px/1.5 var(--sa-font-family);
+
+  /* ── 间距（4 的倍数） ─────────────────────────── */
+  --sa-space-1: 4px;
+  --sa-space-2: 8px;
+  --sa-space-3: 12px;
+  --sa-space-4: 16px;
+  --sa-space-5: 20px;
+  --sa-space-6: 24px;
+  --sa-space-8: 32px;
+
+  /* ── 圆角 ──────────────────────────────────────
+   * 浮层卡 20、卡内块 14、控件 12、小标签 8、药丸全圆。
+   */
+  --sa-radius-xs: 8px;
+  --sa-radius-sm: 12px;
+  --sa-radius-md: 14px;
+  --sa-radius-lg: 20px;
+  --sa-radius-pill: 999px;
+
+  /* ── 阴影 ──────────────────────────────────── */
+  --sa-shadow-card: 0 6px 18px rgba(70, 120, 170, 0.1);
+  --sa-shadow-float: 0 14px 40px rgba(70, 120, 170, 0.18);
+  --sa-shadow-brand: 0 8px 20px rgba(255, 138, 0, 0.3);
+
+  /* ── 控件尺寸 ──────────────────────────────── */
+  --sa-control-sm: 32px;
+  --sa-control-md: 40px;
+  --sa-control-lg: 48px;
+  --sa-icon-sm: 16px;
+  --sa-icon-md: 18px;
+  --sa-icon-lg: 22px;
+
+  /* ── 布局 ──────────────────────────────────────
+   * 窗口默认 1440×900、最小 1280×800（tauri.conf.json）。
+   */
+  --sa-rail-w: 96px;
+  --sa-statusbar-h: 52px;
+  --sa-gutter: 16px;
+  /* 行程面板两档宽度：1 倍看一天，2 倍并排放景点详情。 */
+  --sa-panel-w-1x: 440px;
+  --sa-panel-w-2x: min(920px, calc(100% - 2 * var(--sa-gutter) - 320px));
+  --sa-dock-w: 440px;
+  --sa-dock-h: 400px;
+
+  /* ── 层级 ──────────────────────────────────── */
+  --sa-z-map: 0;
+  --sa-z-overlay: 10;
+  --sa-z-panel: 20;
+  /* 盖住整张地图的页（全屏行程页）：在地图浮层之上、助手之下——全屏时也能叫助手。 */
+  --sa-z-page: 25;
+  --sa-z-dock: 30;
+  --sa-z-popover: 40;
+  --sa-z-modal: 50;
+
+  /* ── 动效 ──────────────────────────────────── */
+  --sa-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --sa-dur-fast: 120ms;
+  --sa-dur: 220ms;
+}

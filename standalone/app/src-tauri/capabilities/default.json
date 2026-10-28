@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "单机版桌面应用的能力白名单：只有核心能力。网关请求、凭据、本地服务都走本应用自己的命令，不开放文件、Shell 或任何车辆控制。",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

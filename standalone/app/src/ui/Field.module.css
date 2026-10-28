@@ -1,0 +1,26 @@
+.field {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  align-items: center;
+  gap: var(--sa-space-3);
+}
+
+.label {
+  font: var(--sa-text-body);
+  color: var(--sa-color-text-secondary);
+}
+
+.input {
+  height: var(--sa-control-md);
+  padding: 0 var(--sa-space-3);
+  border: 1px solid var(--sa-color-border);
+  border-radius: var(--sa-radius-sm);
+  background: var(--sa-color-surface);
+  font: var(--sa-text-body);
+}
+
+.input:focus {
+  outline: 2px solid var(--sa-color-focus);
+  outline-offset: 0;
+  border-color: transparent;
+}

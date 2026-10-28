@@ -1,0 +1,26 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sa-space-2);
+  height: var(--sa-control-lg);
+  padding: 0 var(--sa-space-4);
+  border: 1px solid var(--sa-color-border);
+  border-radius: var(--sa-radius-pill);
+  background: var(--sa-color-surface-float);
+  box-shadow: var(--sa-shadow-float);
+  font: var(--sa-text-body);
+  white-space: nowrap;
+}
+
+.icon {
+  color: var(--sa-color-info);
+}
+
+.city {
+  font-weight: 700;
+}
+
+.source {
+  font: var(--sa-text-caption);
+  color: var(--sa-color-text-tertiary);
+}

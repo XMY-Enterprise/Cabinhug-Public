@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1333" viewBox="0 0 2000 1333">
+  <title>占位图：待替换为团队实拍</title>
+  <rect width="2000" height="1333" fill="#eceef1"/>
+  <rect x="120" y="100" width="1760" height="1133" rx="48" fill="#ffffff" stroke="#b8bec8" stroke-width="6" stroke-dasharray="28 20"/>
+  <g transform="translate(1000 520)" fill="none" stroke="#8a93a3" stroke-width="18" stroke-linejoin="round">
+    <rect x="-190" y="-120" width="380" height="260" rx="36"/>
+    <path d="M -80 -120 L -50 -175 L 50 -175 L 80 -120"/>
+    <circle cx="0" cy="10" r="78"/>
+  </g>
+  <g font-family="PingFang SC, Noto Sans SC, sans-serif" text-anchor="middle" fill="#5b6472">
+    <text x="1000" y="800" font-size="72" font-weight="600">占位图 · 待替换为团队实拍</text>
+    <text x="1000" y="890" font-size="44">中控屏行驶界面，左侧指示灯区域特写</text>
+    <text x="1000" y="960" font-size="36" fill="#8a93a3">替换后按新图重标 cases.jsonl 真值并重录 fixture</text>
+  </g>
+</svg>

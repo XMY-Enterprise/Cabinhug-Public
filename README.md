@@ -1,0 +1,131 @@
+<p align="center">
+  <img src="docs/assets/readme-hero.jpg" alt="暖暖的一天：购车、用车、出行、座舱、售后——Cabinhug 覆盖的五个业务面" width="100%">
+</p>
+<p align="center"><sub>暖暖的一天，从左到右：购车 · 用车 · 出行 · 座舱 · 售后</sub></p>
+
+# Cabinhug AI Agent
+
+<p align="center">
+  <a href="https://github.com/XMY-Enterprise/Cabinhug-Public/actions/workflows/ci.yml"><img src="https://github.com/XMY-Enterprise/Cabinhug-Public/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://github.com/XMY-Enterprise/Cabinhug-Public/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome"></a>
+  <a href="https://github.com/XMY-Enterprise/Cabinhug-Public/stargazers"><img src="https://img.shields.io/github/stars/XMY-Enterprise/Cabinhug-Public?style=flat&color=yellow" alt="GitHub Stars"></a>
+</p>
+
+<p align="center">
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-24.20-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
+  <a href="https://pnpm.io"><img src="https://img.shields.io/badge/pnpm-9.15-F69220?logo=pnpm&logoColor=white" alt="pnpm"></a>
+  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.97-DEA584?logo=rust&logoColor=white" alt="Rust"></a>
+  <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white" alt="Tauri 2"></a>
+  <a href="https://github.com/langchain-ai/langgraphjs"><img src="https://img.shields.io/badge/Orchestrator-LangGraph.js-FF6F00?logo=langchain&logoColor=white" alt="LangGraph.js"></a>
+  <a href="https://www.deepseek.com"><img src="https://img.shields.io/badge/LLM-DeepSeek-4D6BFE" alt="DeepSeek"></a>
+  <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/Database-PostgreSQL%20%2B%20pgvector-336791?logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+</p>
+
+**Cabinhug 是面向主机厂的车载智能体底座：车主开口就有答案，拍照就有结果；私有化部署、国产模型随时切换、全程留痕可追溯、满足生成式 AI 合规审计。车主省下时间，车企留下资产。**
+
+Cabinhug 覆盖车主全生命周期：购车咨询、日常用车、出行规划、座舱陪伴、售后服务。
+
+本仓库是 Cabinhug 的公开源码镜像。帮助文档在 [docs/](docs/README.md)，数据合规说明在 [data/README.md](data/README.md)，商业服务与闭源模型的调用环节、费用假设与锁定风险在 [docs/disclosure.md](docs/disclosure.md)，第三方依赖的版本与许可证在 [THIRD-PARTY.md](THIRD-PARTY.md)。
+
+## 能做什么
+
+| 场景 | 示例 | 由谁回答 |
+|---|---|---|
+| 购车 | 比较两款车的配置差异、按贷款方案算月供、估算五年用车成本 | 购车顾问 |
+| 用车 | 「这个功能怎么用」、「我这车续航掉得快正常吗」 | 用车助手 |
+| 出行 | 多天行程规划、沿途补能、酒店与景点、导航到达后的处置 | 出行规划 |
+| 座舱 | 空调、座椅、音乐等舒适域控制，以及与车无关的闲聊 | 座舱陪伴 |
+| 售后 | 保养到期推算、维修预约、维修历史、保险预检 | 售后服务 |
+
+用车与售后两类问题采用双路检索：一路查通用知识库（说明书、维修手册），一路查这辆车自己的使用数据，两路一起交给模型，答案才带有「你这辆车」的判断。
+
+### 一句话里的三件事
+
+> 下周末带父母去杭州自驾，顺路把保养做了，再去 4S 店给家里人挑辆新车试驾。
+
+这句话里有一条主任务（行程）和两条副任务（售后保养、试驾）。意图理解把它拆成主任务加至多三条副任务，编排层为每条任务分叉出一条 lane 并行求解；lane 之间除必要上下文外相互隔离，各自可以调用自己 Agent 的工具。需要用户确认的动作（保养预约、试驾下单）进同一道权限门，按会话排队、按 lane 顺序一个接一个弹给用户。三条 lane 在 join 汇合，冲突时主任务优先，最后由 answer 把行程、保养站与进厂窗口、试驾门店一段话说完。
+
+<p align="center">
+  <img src="docs/assets/compound-intent-lanes.png" alt="复合意图的分叉—汇合：意图理解拆出主任务与副任务，dispatch 分叉成三条 lane 并行求解，敏感动作在权限门按会话排队，join 汇合后由 answer 一段话说完" width="100%">
+</p>
+
+## 界面一览
+
+<table>
+  <tr>
+    <th align="center" width="45%">车机端</th>
+    <th align="center" width="20%">手机端</th>
+    <th align="center" width="35%">运营控制台</th>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><img src="docs/assets/screenshot-cockpit.jpg" alt="车机端主页：地图上的多天行程、景点导览与目的地推荐，左下角是助手暖暖与长按说话" width="100%"></td>
+    <td align="center" valign="top"><img src="docs/assets/screenshot-mobile.jpg" alt="手机端主页：行程路线、行前提示与点击对话" width="100%"></td>
+    <td align="center" valign="top"><img src="docs/assets/screenshot-console.jpg" alt="运营控制台演示大屏：实时轨迹在 Agent 编排图上高亮走过的节点，下方是本轮的调用计数" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>主页：行程、导览与暖暖（iPad）</sub></td>
+    <td align="center"><sub>主页：行程与对话（iPhone）</sub></td>
+    <td align="center"><sub>演示大屏：编排图上的实时轨迹</sub></td>
+  </tr>
+</table>
+
+## 安全边界
+
+- 三层内容管线：输入规则筛、内容审核、输出个人信息脱敏，对全部 Agent 统一生效。
+- 一道动作权限门：预约、日历写入等有副作用的工具在执行前经内部接口裁决，需要确认的动作会挂起等待用户确认。
+- 硬禁范畴：自动驾驶决策、车辆安全控制、替代专业维修的确定性结论。车机端与手机端的能力白名单不暴露任何车辆控制指令。
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 车机端 / 手机端 | Rust + Tauri 2，React 负责界面（`clients/`） |
+| 运营控制台 | React + TypeScript（`enterprise/console`） |
+| 接入网关 | Node.js，REST + SSE（`enterprise/backend/gateway`） |
+| Agent 编排 | LangGraph.js，作为 ACP Client（`enterprise/backend/agent-runtime`） |
+| 单 Agent 运行时 | pi，经开源 `pi-acp` 以 ACP 协议接入（`enterprise/backend/pi-agents`） |
+| LLM | DeepSeek / Qwen，经 Vercel AI SDK 接入；未配置密钥时使用确定性 Fake 模型 |
+| RAG | RAGFlow（`enterprise/backend/shared/rag`） |
+| Memory | Mem0 OSS + 按类别衰减层（`enterprise/backend/shared/memory`） |
+| Guardrails | 自建内容管线 + 内部权限门（`enterprise/backend/shared/guardrails`、`agent-runtime/src/guard`） |
+| 数据 | PostgreSQL（含 pgvector）、Redis、MinIO |
+
+## 仓库布局
+
+- `clients/` — 车主使用的端：`cockpit`（车机）、`mobile`（手机）；`shared/` 是两端共用的 UI 与 Rust 层
+- `enterprise/` — 企业内部系统：`console/` 运营控制台，`backend/` 网关、编排、worker 与它们的共享库
+- `contracts/` — 端云契约，唯一被两侧同时依赖的包
+- `mocks/` — 模拟的第三方系统：经销商、座舱、维修站、保险，全部是虚构数据
+- `evals/` — 评测集与 runner
+- `infra/` — 容器编排、部署脚本与开发机起停
+- `scripts/dev/` — 不变量检查、探活、知识库工具、演示数据、发版
+- `data/` — 随仓库提供的示例数据，见 [data/README.md](data/README.md)
+
+## 快速开始
+
+前提：Node.js 24.20.0、corepack、Rust 工具链、Docker（Compose v2）。macOS 可用一条脚本装齐，详见[安装](docs/installation.md)。
+
+```bash
+cp .env.example .env
+corepack pnpm install
+corepack pnpm dev:upgrade
+```
+
+启动前在 `.env` 里填四项：`DEEPSEEK_API_KEY`（LLM），以及高德的 `AMAP_SERVER_KEY`、`AMAP_JS_KEY`、`AMAP_JS_SECURITY_CODE`（路径规划、天气、两端的地图底图）。其余密钥可以留空：语音识别、知识库、门店系统、内容审核都有 Fake 或 Mock 降级。各项的作用与申请方式见[配置外部服务](docs/external-services.md)。
+
+使用 Claude Code 或 Codex 的开发者可以直接让助手来做：仓库自带技能 `dev-up`（`.claude/skills/dev-up/`），对助手说「把项目跑起来」，它会检查工具链、生成 `.env`、安装编译、启动全部服务与三个端，并逐项验证后给出地址。
+
+## 文档
+
+- [技术架构说明](docs/architecture.md)：模型选择、Agent 架构、工具调用、知识库与检索、上下文管理、工作流编排、数据流与安全边界
+- [逐步部署手册](docs/step-by-step.md)：不用 AI 助手，照着做到三个端都跑起来
+- [安装](docs/installation.md)
+- [快速体验](docs/quickstart.md)
+- [配置外部服务](docs/external-services.md)
+- [部署](docs/deployment.md)
+- [排障](docs/troubleshooting.md)
+
+## License
+
+[MIT](LICENSE)

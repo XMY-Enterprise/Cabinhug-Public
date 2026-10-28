@@ -1,0 +1,77 @@
+/**
+ * 「确认弹窗演示」固定快照（devbar 专用，与 `demoTripPlan` 同款取向）。
+ *
+ * 确认弹层只在真实动作触发时出现，浏览器里没有 Tauri invoke 也就没有那条链路；
+ * 这是在浏览器里查看弹层版式（横屏/竖屏/双主题）的唯一路径。
+ *
+ * 明细的字符串形状必须与服务端 `commitDisclosures` 一致：端上的结构化解析
+ * 认的就是这个形状，演示数据形状不同时，版式正确不代表真链路正确。
+ *
+ * # 文案逐字照抄定稿，不加「演示」后缀
+ *
+ * 同 `demoVehicleProfile` 的取向：只有内容与定稿逐字相同，
+ * `ui-diff.py` 量出来的差异才全是版式差异。给每行都缀上「（演示）」
+ * 会改变换行位置，版式差异与字数差异无法区分。
+ * "这是演示数据"由入口保证：只有 `?hitl=demo` 与 devbar 开关能取到它，
+ * Tauri 窗口不带 query，真实中断永远优先（见 App.tsx）。
+ */
+import type { PermissionRequest } from "@cabinhug/shared";
+
+/**
+ * `?hitl=demo`：直接弹出确认层并隐藏 devbar，供截图脚本按定稿尺寸出图
+ * （同 `?profile=demo`）。Tauri 窗口不带 query，真实链路不变。
+ */
+export function isHitlDemo(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("hitl") === "demo";
+}
+
+export const DEMO_PERMISSION: PermissionRequest = {
+  interruptId: "demo-interrupt",
+  action: "trip_plan_commit",
+  title: "需要你确认：trip_plan_commit",
+  scope: "trip",
+  details: [
+    { label: "动作", value: "确认多天行程并保存：广州 4天" },
+    // 行程首行：从哪去哪、几天。演示清单要包含这一行，
+    // 缺出发地时才能在版式上直接看出来。
+    { label: "行程", value: "上海 → 广州，共 4 天，2026-10-01 出发" },
+    {
+      label: "第1天 番禺乐园日",
+      value:
+        "长隆欢乐世界-北门广场、长隆欢乐世界-森林神庙；住 NOGO城景公寓(汉溪长隆地铁站店) 约280-450/晚（估算）",
+    },
+    {
+      label: "第2天 天河科普日",
+      value: "广东科学中心、正佳极地海洋世界；住 NOGO城景公寓(汉溪长隆地铁站店) 约280-450/晚（估算）",
+    },
+    {
+      label: "第3天 荔湾人文日",
+      value: "陈家祠堂、永庆坊、沙面岛；住 锦江之星(西华路彩虹桥地铁站店) 约200-350/晚（估算）",
+    },
+    {
+      label: "第4天 珠江地标日",
+      value: "广州塔、海心沙广场；住 广州柏悦酒店 约900-1600/晚（估算）",
+    },
+    /*
+     * 大交通只列这次要走的那一种（`selectedTransit`，当前默认飞机）。
+     * 演示夹具跟着服务端的输出形状走，否则版式与真链路给出的不是同一个。
+     */
+    {
+      label: "大交通",
+      value: "飞机：约2-2.5小时，约600-1200元/人（估算），具体航班以购票平台为准",
+    },
+    /*
+     * 体检行：形状与服务端 `formatAuditLines` 经 `splitLabelled` 拆出的一致——
+     * 已验 5 / 请你看 1 / 验不了 1 / 自动修 1，对应 Brief §5 状态 1。
+     */
+    { label: "体检·已验", value: "5 项通过 / 共 7 项" },
+    { label: "体检·已自动补", value: "[第2天] 已自动补：第 2 天没有住宿" },
+    {
+      label: "体检·请你看",
+      value: "[第3天] 第 3 段约 2 小时 40 分，超过单段上限 2 小时；沿线没找到满足门槛的停靠点，修了 3 轮没解决",
+    },
+    { label: "体检·验不了", value: "返程闭环：缺返程段（草案的最后一段没有终点站）" },
+  ],
+  disclosure: [],
+};

@@ -1,0 +1,81 @@
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+  z-index: var(--sa-z-map);
+}
+
+/* 浮层网格本身不吃事件，地图照常拖动；槽位里的东西各自吃。 */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--sa-z-overlay);
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--sa-gutter);
+  padding: var(--sa-gutter);
+  pointer-events: none;
+}
+
+.overlay > *,
+.body > * {
+  pointer-events: auto;
+}
+
+.mini {
+  grid-area: 1 / 1 / 3 / 2;
+  align-self: start;
+}
+
+.summary {
+  grid-area: 1 / 2;
+  min-width: 0;
+}
+
+.aside {
+  grid-area: 1 / 3;
+  align-self: start;
+}
+
+.body {
+  grid-area: 2 / 1 / 3 / 4;
+  position: relative;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.controls {
+  position: absolute;
+  right: 0;
+  bottom: calc(var(--sa-control-md) + var(--sa-space-3));
+}
+
+.panel1x,
+.panel2x {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--sa-z-panel);
+  display: flex;
+}
+
+.panel1x {
+  width: var(--sa-panel-w-1x);
+}
+
+.panel2x {
+  width: var(--sa-panel-w-2x);
+}

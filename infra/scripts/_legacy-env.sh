@@ -1,0 +1,57 @@
+# shellcheck shell=bash
+# 改名前的环境变量（ACR-051）：`CARLIFE_*` → `CABINHUG_*`。
+#
+# 脚本与服务只读新名；本机 `.env`、线上部署仍可能只有旧名。凡是 `set -a; . .env` 之后
+# 要读 `CABINHUG_*` 的脚本，source 本文件并调用一次 `bridge_legacy_env`：旧名的值搬到新名上，
+# 新名经 export 导出，由本脚本拉起的子进程也看得见。
+#
+# 名单与 enterprise/backend/shared/db/src/config/legacy-env.ts 的 RENAMED_ENV_SUFFIXES 是同一份，
+# 由 scripts/dev/check/legacy-env-parity.test.ts 守一致。不做前缀通配：通配会把拼错的旧变量也接住。
+# 退休的 CARLIFE_ASR / CARLIFE_TTS 不在名单里。
+
+LEGACY_ENV_SUFFIXES="
+  ADMIN_TOKEN AEC_DELAY_MS AEC_ENABLED AGENT_RUNTIME ALERT_CATALOG_ROOT ANSWER_MODEL
+  ANSWER_RUNTIME ANSWER_TIMEOUT_MS APP_DIR ASR_FAKE_TEXT ASR_MODEL_VOLUME CHECKPOINTER
+  CONFIG_MASTER_KEY CONFIG_TTL_MS CONTEXT_CACHE_TTL_S CONTEXT_LAYER DEMO_TOKEN
+  DEV_INFRA_LOCAL_ASR_READY DEV_INFRA_TIMEOUT_SECONDS DEV_PASSWORD DEV_TMUX_SESSION
+  DEV_UPGRADE_BOOTSTRAP_TIMEOUT DRILL_KEEP DRIVE_DAILY_MAX_MIN DRIVE_LEG_SAFE_MAX_MIN
+  ENV EVALS_ROOT EVIDENCE_SINCE FINANCE_BILLS_TTL_MS FINANCE_DANGER_CNY
+  FINANCE_HISTORY FINANCE_HISTORY_FILE FINANCE_HISTORY_INTERVAL_MIN FINANCE_STATE_FILE
+  FINANCE_TIMEOUT_MS FINANCE_TTL_MS FINANCE_WARN_CNY GATEWAY_URL GENERAL_SCOPE
+  HOST_SERVICES_HOST HOTEL_GAP_KM ICON_EMBED_MODEL ICON_IMAGES_ROOT ICON_INDEX
+  IMAGE_PREFIX IMAGE_TAG JWT_SECRET KB_FIGURES KB_FIGURES_ROOT KB_FIGURES_STORE LLM
+  LLM_FAKE_TAG LOCAL_ASR_IMAGE MEM0_IT NODE_PREFLIGHT_DONE OPS_TOKEN PG_CONTAINER
+  PII_MASTER_KEY PI_AGENT PI_ANSWER_THINKING PI_APPEND_PROMPT PI_MODEL PI_TOOLS
+  PLAN_AUDIT_BUDGET_MS PLAN_AUDIT_MAX_ROUNDS PLAN_AUDIT_STALL_ROUNDS PROBE_RATE_LIMIT
+  QDRANT_BACKUP_DIR SCRATCH SENTINEL_DEBUG SERVICE_ASKS SESSION_IDLE_MIN SIDE_TASKS
+  SMOKE_TOKEN TITLE_MODEL TOOLS TOOLS_ENDPOINT TOUR_TWO_STAGE TRIP_CLARIFY
+  TRIP_PLAN_LAYER TTS_SAY_VOICE VISION VISION_DESCRIBE_MODEL VISION_DESCRIBE_PROVIDER
+  VISION_DETECT_MODEL VISION_DETECT_PROVIDER VISION_FIXTURES VISION_YOLO_CONF
+  VISION_YOLO_IMGSZ VISION_YOLO_MODEL WEATHER_CMA
+"
+
+# legacy_env <新名> <旧名>：新名未设而旧名已设时，把值搬到新名并导出，返回 0；否则返回 1。
+# 两个都设时以新名为准：值相同视为已桥接（重复调用），值不同记进 LEGACY_ENV_IGNORED 供调用方提示。
+legacy_env() {
+  local current="$1" legacy="$2"
+  [ -n "${!legacy+x}" ] || return 1
+  if [ -n "${!current+x}" ]; then
+    [ "${!current}" = "${!legacy}" ] || LEGACY_ENV_IGNORED="${LEGACY_ENV_IGNORED:-} $legacy"
+    return 1
+  fi
+  export "$current=${!legacy}"
+  return 0
+}
+
+# bridge_legacy_env：按名单逐个桥接，最后在 stderr 打一行汇总（不含变量值）。可重复调用。
+bridge_legacy_env() {
+  local suffix copied=""
+  LEGACY_ENV_IGNORED=""
+  for suffix in $LEGACY_ENV_SUFFIXES; do
+    legacy_env "CABINHUG_$suffix" "CARLIFE_$suffix" && copied="$copied CARLIFE_$suffix"
+  done
+  [ -z "$copied" ] || echo "⚠️  环境变量旧名已弃用，本次按新名 CABINHUG_* 生效：${copied# }" >&2
+  [ -z "$LEGACY_ENV_IGNORED" ] ||
+    echo "⚠️  环境变量旧名已弃用且被忽略（同名的 CABINHUG_* 已设置）：${LEGACY_ENV_IGNORED# }" >&2
+  return 0
+}

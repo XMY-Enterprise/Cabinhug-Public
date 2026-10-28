@@ -1,0 +1,120 @@
+/**
+ * ragflow_retrieve —— RAGFlow Cloud 检索（带出处），双路检索的通用原理那一路（§6）。
+ *
+ * # 用注入而不是在这里读配置
+ *
+ * `enterprise/backend/shared/tools` 不读环境变量、不连数据库，以便脱离 Agent 与 LLM 直接单测
+ * （注册表文件头第 3 条）。RAGFlow 的 baseUrl / apiKey / dataset id 由装配层
+ * （`agent-runtime` 启动时）经 `setRagClient` 注入。
+ *
+ * 未注入时明确返回"未接入"，不返回空结果：空结果会被上层当成
+ * "说明书里没写这件事"，而事实是"未接入"。
+ *
+ * # 跨数据集隔离不在这里做
+ *
+ * 它在 `enterprise/backend/shared/rag` 的 `createRagClient` 里（调用层强制，AC-24-8）。
+ * 本文件只把 `agent` 如实传下去，不允许调用方指定 agent 之外的数据集：
+ * dataset 与 agent 的映射由 `datasetsForAgent` 决定，不由入参决定。
+ */
+
+import { datasetsForAgent, type DatasetKey, type RagClient, type RetrievedChunk } from "@cabinhug/rag";
+
+import { defineExternalTool, ToolError, type ExternalTool } from "./external";
+
+export interface RagflowArgs {
+  query: string;
+  /**
+   * 省略时查该 Agent 允许的全部数据集（ACR-042）；给了且在白名单内则只查它。
+   *
+   * `consumers` 表示"谁可以查"，不表示"缺省查哪个"：只取第一个允许集会让
+   * 同一 Agent 的其余数据集（如 `insurance-kb`）永远查不到。
+   */
+  dataset?: DatasetKey;
+  topK?: number;
+  /**
+   * 车型限定（F-23-07）。多车型同库时必须传，
+   * 否则会返回其他车型手册的片段，且带着出处。
+   */
+  vehicleModel?: string;
+}
+
+export interface RagflowData {
+  /** 这一次实际查了哪几个集。来源标注不在这一层，它跟着每条 chunk 走（F-24-11）。 */
+  datasets: DatasetKey[];
+  chunks: RetrievedChunk[];
+}
+
+let client: RagClient | undefined;
+
+/** 装配层注入。传 undefined 表示未接入（离线/未配置）。 */
+export function setRagClient(c: RagClient | undefined): void {
+  client = c;
+}
+
+export function getRagClient(): RagClient | undefined {
+  return client;
+}
+
+export const ragflowTool: ExternalTool<RagflowArgs, RagflowData> = defineExternalTool<
+  RagflowArgs,
+  RagflowData
+>({
+  name: "ragflow_retrieve",
+  provider: "ragflow-cloud",
+  timeoutMs: 8_000,
+  async real(args, ctx) {
+    const agent = ctx.agent ?? "ownership";
+    const allowed = datasetsForAgent(agent);
+    if (allowed.length === 0) {
+      throw new ToolError("ragflow_retrieve", "invalid", `Agent ${agent} 没有可检索的数据集`, false);
+    }
+    // 入参给了 dataset 也要落在该 Agent 的白名单内，否则忽略并按缺省处理；
+    // 不报错，避免模型换个说法重试绕过。
+    // 缺省 = 全部允许集：`consumers` 是"谁可以查"，不是"会查哪个"。
+    const picked = allowed.find((d) => d.key === args.dataset);
+    const datasets = picked ? [picked.key] : allowed.map((d) => d.key);
+
+    if (!client) {
+      throw new ToolError(
+        "ragflow_retrieve",
+        "unconfigured",
+        "RAGFlow 未接入（RAGFLOW_BASE_URL / API_KEY / dataset id 未配置）",
+        false,
+      );
+    }
+
+    const chunks = await client.retrieve({
+      datasets,
+      query: args.query,
+      // 不在这里给默认值。返回条数是检索侧的调参结论（`pnpm rag:eval` 定的
+      // `DEFAULT_PAGE_SIZE`），在工具层另给默认值会覆盖它。
+      topK: args.topK,
+      agent,
+      vehicleModel: args.vehicleModel,
+    });
+    return { datasets, chunks };
+  },
+  /**
+   * mock 模式的固定数据。内容取自公开的电动车低温衰减常识，
+   * 不编具体车型的参数：四件套会把 `source.kind` 标成 mock，
+   * 内容本身也不应看起来像真实厂商数据。
+   */
+  mock(args) {
+    const dataset = (args.dataset ?? "vehicle-manuals") as DatasetKey;
+    return {
+      datasets: [dataset],
+      chunks: [
+        {
+          content:
+            "锂离子动力电池在低温环境下内阻升高、可用容量下降，续航表现通常低于常温工况；" +
+            "此外座舱制热会额外消耗电量。",
+          source: { document: "（模拟）车辆使用说明书", location: "电池与充电", dataset },
+          // mock 模式下的内容是模拟的，与数据集自身的 provenance 无关，
+          // 标的是「这一条返回的是假数据」（标注跟着 chunk 走，ACR-042）。
+          provenance: "simulated",
+          score: 0.9,
+        },
+      ],
+    };
+  },
+});

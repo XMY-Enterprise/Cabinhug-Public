@@ -1,0 +1,16 @@
+{
+  "postgres": {
+    "version": "16.15",
+    "url": "https://ftp.postgresql.org/pub/source/v16.15/postgresql-16.15.tar.bz2",
+    "sha256": "c1575341fa7bd40f5274ea465b34390f4dc64cdd0770af327005caaeb9f6b7ed",
+    "checksumSource": "https://ftp.postgresql.org/pub/source/v16.15/postgresql-16.15.tar.bz2.sha256",
+    "license": "PostgreSQL"
+  },
+  "pgvector": {
+    "version": "0.8.7",
+    "url": "https://codeload.github.com/pgvector/pgvector/tar.gz/refs/tags/v0.8.7",
+    "sha256": "cac0b10c360f05b2d521200105ba3697e773d4cd3731f5a915a7e37ebe0bea85",
+    "commit": "f37c13f68b57d2c3472b2214fbcff699d6d34876",
+    "license": "PostgreSQL"
+  }
+}

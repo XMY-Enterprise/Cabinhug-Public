@@ -1,0 +1,16 @@
+.host {
+  position: absolute;
+  inset: 0;
+  z-index: var(--sa-z-page);
+}
+
+/*
+ * 共享的导览页是 `position: fixed; z-index: 120` 的整窗覆盖层；在这里改成只盖主区。
+ * `top: 0`：车机版式让开车机顶栏（`top: var(--hud-topbar-h)`），桌面主区没有那条顶栏，
+ * 不归零就露出底下地图的行程卡。选择器多带一个属性，压过共享样式的 `[data-surface] .guide-screen`。
+ */
+.host[data-surface] :global(.guide-screen) {
+  position: absolute;
+  top: 0;
+  z-index: auto;
+}

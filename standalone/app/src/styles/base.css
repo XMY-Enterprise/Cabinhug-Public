@@ -1,0 +1,75 @@
+/*
+ * 全局只放三类东西：盒模型与页面底、两个通用工具类、共享地图层（@cabinhug/ui）的落位覆盖。
+ * 组件自己的样式在各自的 `*.module.css`，不进这里。
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--sa-color-canvas);
+  color: var(--sa-color-text);
+  font: var(--sa-text-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sa-color-focus);
+  outline-offset: 2px;
+}
+
+/* 数字等宽：时刻、里程、日期，竖排时才对得齐。 */
+.sa-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/*
+ * 共享地图层自带的「回到全程」：车机端把它放在右上；单机版右上是天气，挪到右下缩放钮下面。
+ * 行程面板开着时让到面板左边（`data-panel` 由地图舞台挂）。
+ */
+[data-map-stage] .hud-map-recenter {
+  top: auto;
+  right: var(--sa-gutter);
+  bottom: var(--sa-gutter);
+  padding: 0 var(--sa-space-4);
+  height: var(--sa-control-md);
+  font: var(--sa-text-label);
+  border-color: var(--sa-color-border);
+  background: var(--sa-color-surface-float);
+  box-shadow: var(--sa-shadow-float);
+  color: var(--sa-color-text);
+}
+
+[data-map-stage][data-panel="1x"] .hud-map-recenter {
+  right: calc(var(--sa-panel-w-1x) + 2 * var(--sa-gutter));
+}
+
+[data-map-stage][data-panel="2x"] .hud-map-recenter {
+  display: none;
+}

@@ -1,0 +1,876 @@
+/* 档案页。视觉遵循建档 Brief §3：
+   高对比中性底、单一可信蓝、琥珀只用于"估算/待确认"，无渐变无装饰图。 */
+
+.own-page {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  /*
+   * 横轴钉死，兜底用；行宽本身由 box-sizing 保证（见下面 `.own-navrow, .own-row`）。
+   * `overflow-y: auto` 会把 `overflow-x` 一起变成 `auto`（CSS 规定两轴不能一个
+   * `visible` 一个不是），任何横向溢出都会让整页跟着手指左右拖，
+   * 而这一页是一列上下滚的卡片，横向没有内容。
+   *
+   * 配合 `overflow-wrap`：钉死横轴之后，长串（VIN、错误信息里的地址）会被裁掉，
+   * 所以让它折行。
+   */
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+/* iPhone 的状态栏 / 灵动岛：页壳贴着 inset:0，不避让时标题会被压在时钟
+   与灵动岛底下。车机端这两个 env() 恒为 0，写在这里不影响它。 */
+  /* 底部让出导航高度 + home indicator 安全区 */
+  padding: calc(20px + env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom));
+  background: var(--hud-map-base);
+  color: var(--hud-text);
+}
+
+.own-title {
+  margin: 0 0 16px;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
+}
+
+.own-card {
+  background: var(--m-card-bg);
+  border-radius: var(--m-radius-card);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.own-card--default {
+  border: 1.5px solid #2563eb;
+}
+
+.own-badge {
+  display: inline-block;
+  font-size: var(--m-font-caption);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+
+.own-badge--default {
+  background: #2563eb;
+  color: #fff;
+}
+
+/* 琥珀色只用于"估算/待确认"（Brief §3），待补 VIN 属于待确认 */
+.own-badge--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.own-model {
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
+  margin: 0;
+}
+
+.own-meta {
+  margin: 8px 0 0;
+  font-size: var(--m-font-body);
+  color: var(--hud-text-muted);
+  line-height: 1.6;
+}
+
+/* 空态：行动引导替代空白页（Brief §4） */
+.own-empty {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.own-empty p {
+  margin: 0 0 8px;
+  font-size: var(--m-font-body);
+  color: var(--hud-text-muted);
+}
+
+.own-cta {
+  margin-top: 16px;
+  min-height: 44px; /* 触控热区下限（Brief §3） */
+  padding: 0 24px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-medium);
+}
+
+.own-cta:active {
+  opacity: 0.85;
+}
+
+/* offline ≠ empty：取不到数据时如实说，不显示"还没有车辆" */
+.own-offline {
+  padding: 32px 24px;
+  text-align: center;
+  font-size: var(--m-font-body);
+  color: var(--hud-text-muted);
+}
+
+.own-secondary {
+  margin-top: 12px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-size: var(--m-font-body);
+}
+
+/* ── 建档向导 ─────────────────────────────────────── */
+
+.own-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: var(--m-font-title);
+  background: var(--hud-card-bg, #fff);
+  color: inherit;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.own-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.own-choice-list--wrap {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.own-choice {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: var(--hud-card-bg, #fff);
+  color: inherit;
+  font-size: var(--m-font-body);
+  text-align: left;
+}
+
+.own-choice--compact {
+  min-width: 88px;
+  text-align: center;
+}
+
+.own-choice.is-active {
+  border-color: #2563eb;
+  color: #2563eb;
+  font-weight: var(--m-weight-bold);
+}
+
+.own-choice-note {
+  display: block;
+  font-size: var(--m-font-caption);
+  color: var(--hud-text-muted);
+  font-weight: var(--m-weight-regular);
+}
+
+/* 推算依据与数值同一视区（Brief §2）；琥珀只用于估算/待确认 */
+.own-forecast-value {
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
+}
+
+.own-forecast-value--overdue {
+  color: #b91c1c;
+}
+
+.own-basis {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: var(--m-font-caption);
+  color: var(--hud-text-muted);
+}
+
+.own-basis--estimate {
+  color: #92400e;
+}
+
+.own-source-badge {
+  display: inline-block;
+  font-size: var(--m-font-caption);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #e5e7eb;
+  color: #374151;
+  margin-left: 6px;
+}
+
+/* ── 常用人员 ─────────────────────────────────────────── */
+
+.own-member {
+  border-top: 1px solid var(--hud-divider);
+  padding: 10px 0 2px;
+}
+
+.own-member--form,
+.own-member--danger {
+  border-top-style: dashed;
+}
+
+.own-member-name {
+  margin: 0 0 2px;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-bold);
+}
+
+.own-input {
+  display: block;
+  width: 100%;
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hud-divider);
+  background: transparent;
+  color: inherit;
+  font-size: var(--m-font-body); box-sizing: border-box;
+}
+
+/* 多选标签：常驾/常乘、年龄段、出行需要共用一套 */
+.own-chip {
+  margin: 0 6px 6px 0;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hud-divider);
+  background: transparent;
+  color: inherit;
+  font-size: var(--m-font-caption);
+}
+
+/* `.own-chip--on` 的定义必须排在下面那份 `.own-chip` 之后，见那里的说明。
+   放在这里会被同权重的后者覆盖，选中态看不出来。 */
+
+.own-error {
+  margin: 4px 0;
+  font-size: var(--m-font-caption);
+  color: var(--hud-warn);
+}
+
+/* ── 竖版档案页 ─────────────────────────────────────────────
+ *
+ * token 取自 手机端 档案页设计 Brief §4：
+ * 雾白 / 深海军蓝底、珍珠白 / 蓝黑容器、湖蓝可信信息、琥珀只用于待办与
+ * 有后果的行动。正文 ≥16px、热区 ≥48px。
+ *
+ * 变量挂在 `.own-page--light/dark` 而不是 :root：档案页与外壳同屏，
+ * 挂 :root 会影响到还没适配的其它页。
+ */
+
+.own-page--light {
+  --o-bg: #f5faff;
+  --o-card: #ffffff;
+  --o-sub: #f8fbff;
+  --o-edge: rgba(75, 143, 246, 0.14);
+  --o-text: #0a2a5a;
+  --o-dim: #7892b2;
+  --o-blue: #4b8ff6;
+  --o-amber: #ff9900;
+  --o-ok: #17b26a;
+  --o-danger: #b44949;
+}
+
+.own-page--dark {
+  --o-bg: #06182b;
+  --o-card: #0b2035;
+  --o-sub: #102a43;
+  --o-edge: rgba(111, 174, 255, 0.18);
+  --o-text: #f6f8fb;
+  --o-dim: #9eb3c8;
+  --o-blue: #6faeff;
+  --o-amber: #ffb11a;
+  --o-ok: #35d08a;
+  --o-danger: #ff8a7a;
+}
+
+.own-page--light,
+.own-page--dark {
+  background: var(--o-bg);
+  color: var(--o-text);
+  font-size: var(--m-font-title);
+  line-height: 1.5;
+}
+
+.own-page--light .own-card,
+.own-page--dark .own-card {
+  background: var(--o-card);
+  border: 1px solid var(--o-edge);
+  border-radius: 24px;
+  padding: 16px 18px;
+  margin: 12px 0;
+}
+
+/*
+ * 顶部 tab：车辆档案 / 人员档案，两个平级 tab，"这辆车"和"谁在用"可直接切换。
+ *
+ * 吸顶依赖滚动容器就是 `.own-page` 自己（`position:absolute; inset:0;
+ * overflow-y:auto`）。`sticky` 的 `top` 相对这个滚动口的 padding box，`top: 0`
+ * 贴到页壳上内距的最上沿，所以上内距（含刘海/灵动岛的安全区）放在
+ * tab 条自己身上，`.own-page--tabs` 把页壳那份清零；否则 tab 条滚上去会钻进
+ * 状态栏底下（见 test/safe-area.test.ts）。
+ * 左右负外边距让它铺满整宽，否则卡片会从两侧 16px 的缝里露出来。
+ */
+.own-page--tabs { padding-top: 0; }
+.own-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 -16px 4px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background: var(--o-bg);
+  display: flex;
+}
+.own-tabs__track {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--o-sub);
+  border: 1px solid var(--o-edge);
+}
+.own-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px; /* 触控热区下限 */
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--o-dim);
+  font: inherit;
+  font-weight: var(--m-weight-bold);
+  cursor: pointer;
+}
+.own-tab svg { width: 20px; height: 20px; }
+/*
+ * 选中态不用实心橙：这一页底下就是底部导航那枚橙色药丸，
+ * 一屏只留一个实心橙（同 `.own-page--light .own-cta` 那条注释）。
+ */
+.own-tab.is-active {
+  background: var(--o-card);
+  color: var(--o-text);
+  font-weight: var(--m-weight-bold);
+  box-shadow: 0 2px 8px rgba(70, 120, 170, 0.14);
+}
+
+.own-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.own-head--sub { justify-content: flex-start; }
+.own-head-icon { display: inline-flex; width: 34px; height: 34px; color: var(--o-blue); }
+.own-head-icon svg { width: 100%; height: 100%; }
+.own-head-icon--sm { width: 26px; height: 26px; }
+.own-head-icon--warn { color: var(--o-amber); }
+.own-page--light .own-title,
+.own-page--dark .own-title { margin: 0; font-size: var(--m-font-title); line-height: var(--m-lh-title); font-weight: var(--m-weight-bold); }
+
+.own-back {
+  min-height: 48px;
+  padding: 0 12px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-blue);
+  font-size: var(--m-font-title);
+  cursor: pointer;
+}
+.own-subline { margin: 4px 0 2px; text-align: center; }
+.own-center { text-align: center; }
+.own-tiny { font-size: var(--m-font-body); }
+
+.own-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--o-sub);
+  border: 1px solid var(--o-edge);
+  font-size: var(--m-font-body);
+  color: var(--o-text);
+}
+/*
+ * 选中态。
+ *
+ * # 必须排在上面那份 `.own-chip` 后面
+ *
+ * 这个文件里 `.own-chip` 有两份：常用人员区一份，竖版档案页一份。
+ * 两者选择器权重相同（0,1,0），后者的
+ * `border: 1px solid var(--o-edge)` 与 `color: var(--o-text)` 会覆盖先出现的
+ * `.own-chip--on` 的 `border-color` 与 `color`，选中后界面没有任何变化。
+ * 旁边的 `.own-chip.is-on` 是竖版档案页的约定。
+ */
+.own-chip--on {
+  border-color: var(--o-blue, #4c9aff);
+  color: var(--o-blue, #4c9aff);
+  background: transparent;
+  font-weight: var(--m-weight-bold);
+}
+
+.own-chip--quiet { color: var(--o-dim); }
+.own-chip--outline { border-color: var(--o-blue); color: var(--o-blue); background: transparent; }
+
+/* 车型切换 */
+.own-picker { position: relative; margin-left: auto; }
+.own-pick {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--o-edge);
+  background: var(--o-card);
+  color: var(--o-text);
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
+}
+.own-caret { transition: transform 0.16s ease; }
+.own-caret.is-open { transform: rotate(180deg); }
+.own-pick-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 3;
+  margin: 0; padding: 6px; list-style: none; min-width: 220px;
+  background: var(--o-card); border: 1px solid var(--o-edge);
+  border-radius: 16px; box-shadow: 0 16px 40px rgba(10, 42, 90, 0.18);
+}
+.own-pick-menu button {
+  width: 100%; min-height: 48px; padding: 0 12px; text-align: left; box-sizing: border-box;
+  border: 0; border-radius: 12px; background: transparent; color: var(--o-text); font-size: var(--m-font-title);
+}
+.own-pick-menu button.is-active { background: var(--o-sub); color: var(--o-blue); }
+
+/* 车辆主卡 */
+.own-hero-title { margin: 0 0 10px; font-size: var(--m-font-title); font-weight: var(--m-weight-bold); text-align: right; }
+.own-hero-body { display: flex; align-items: center; gap: 12px; }
+.own-art { width: 132px; height: 132px; flex: 0 0 auto; display: grid; place-items: center; }
+.own-art img { width: 100%; height: 100%; object-fit: contain; }
+.own-art-fallback {
+  width: 84px; height: 84px; display: grid; place-items: center;
+  border-radius: 22px; background: var(--o-sub); color: var(--o-dim);
+  font-size: var(--m-font-metric); font-weight: var(--m-weight-bold);
+}
+.own-facts { flex: 1; margin: 0; min-width: 0; }
+.own-facts > div {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--o-edge);
+}
+.own-facts > div:last-child { border-bottom: 0; }
+.own-facts dt { color: var(--o-dim); font-size: var(--m-font-body); }
+.own-facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.own-facts-foot { justify-content: flex-start !important; }
+.own-num { color: var(--o-amber); font-size: var(--m-font-metric); line-height: var(--m-lh-metric); font-weight: var(--m-weight-bold); }
+.own-num span { font-size: var(--m-font-body); font-weight: var(--m-weight-medium); }
+.own-star { color: var(--o-blue); }
+.own-facts-inline { margin: 4px 0; font-variant-numeric: tabular-nums; }
+
+/* 保养推算：琥珀只在这里和有后果的行动上出现 */
+.own-forecast { display: flex; gap: 12px; }
+.own-badge-round {
+  width: 56px; height: 56px; flex: 0 0 auto; border-radius: 50%;
+  display: grid; place-items: center; background: var(--o-amber); color: #fff;
+}
+.own-badge-round svg { width: 32px; height: 32px; }
+.own-forecast-main { flex: 1; min-width: 0; }
+.own-forecast-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--m-font-title); }
+.own-page--light .own-forecast-value,
+.own-page--dark .own-forecast-value {
+  margin: 2px 0 6px; color: var(--o-amber); font-size: var(--m-font-metric); line-height: var(--m-lh-metric); font-weight: var(--m-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.own-forecast-value span { font-size: var(--m-font-title); font-weight: var(--m-weight-medium); }
+.own-basis { margin: 0 0 10px; color: var(--o-dim); font-size: var(--m-font-caption); }
+/*
+ * 两个动作按钮同高。
+ * `.own-secondary` 自带 `margin-top: 12px`（竖排次按钮的间距），
+ * 在这一行 flex 里 stretch 会把它压矮 12px，使「记一笔」显得高出一截。
+ * 这里把外边距清掉并改成居中对齐。
+ */
+.own-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.own-actions > button { margin-top: 0; }
+.own-warnbtn {
+  min-height: 48px; padding: 0 18px; border-radius: 14px;
+  border: 1px solid var(--o-amber); background: transparent; color: var(--o-amber); font-size: var(--m-font-title);
+}
+.own-warnbtn:disabled, .own-page--light .own-secondary:disabled { opacity: 0.5; }
+
+/* 画像 */
+.own-card-head { display: flex; align-items: center; gap: 8px; font-size: var(--m-font-title); margin-bottom: 6px; }
+.own-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.own-stat {
+  flex: 1 1 140px; min-width: 0; display: flex; align-items: center; gap: 8px;
+  padding: 10px; border-radius: 16px; border: 1px solid var(--o-edge); background: var(--o-sub);
+}
+.own-stat small { display: block; color: var(--o-dim); font-size: var(--m-font-caption); }
+.own-stat b { font-size: var(--m-font-metric); line-height: var(--m-lh-metric); font-variant-numeric: tabular-nums; }
+.own-stat b span { font-size: var(--m-font-caption); font-weight: var(--m-weight-medium); }
+.own-stat-text { font-size: var(--m-font-body) !important; font-weight: var(--m-weight-bold); }
+.own-stat-icon { width: 34px; height: 34px; flex: 0 0 auto; }
+.own-stat-icon svg { width: 100%; height: 100%; }
+.own-stat-icon--blue { color: var(--o-blue); }
+.own-stat-icon--green { color: var(--o-ok); }
+.own-derivation { margin-top: 8px; font-size: var(--m-font-caption); color: var(--o-dim); }
+.own-derivation summary { min-height: 32px; }
+.own-derivation ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* 导航行与时间线 */
+.own-navrow, .own-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  /*
+   * `width: 100%` 与左右内边距同时在场，就必须写 `border-box`：本仓没有全局的
+   * box-sizing 复位，缺省是 `content-box`，两者相加会把行撑出容器。
+   *
+   * `.own-navrow` 自身是卡片、`.own-row` 与 `.own-card` 叠用，两处都带 18px 的
+   * 左右内边距；用 `content-box` 时每一行比容器宽 36px，整页会跟着手指左右拖
+   * （`overflow-y: auto` 会把 `overflow-x` 一并变成 `auto`）。
+   */
+  box-sizing: border-box;
+  min-height: 56px; text-align: left; border: 0; background: transparent;
+  color: inherit; font: inherit; padding: 10px 0;
+}
+.own-navrow {
+  background: var(--o-card); border: 1px solid var(--o-edge);
+  border-radius: 24px; padding: 12px 18px; margin: 12px 0;
+}
+.own-navrow-icon {
+  width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center;
+  border-radius: 50%; color: var(--o-blue);
+}
+.own-navrow-icon svg { width: 26px; height: 26px; }
+.own-navrow-icon--warn { background: var(--o-amber); color: #fff; }
+.own-navrow-main { flex: 1; min-width: 0; }
+.own-navrow-main b { display: block; font-size: var(--m-font-title); font-weight: var(--m-weight-bold); }
+.own-navrow-main small { display: block; color: var(--o-dim); font-size: var(--m-font-caption); margin-top: 2px; }
+.own-navrow-arrow { color: var(--o-dim); font-size: var(--m-font-metric); line-height: 1; }
+
+/*
+ * 时间轴：竖线与圆点共用一条中线 `--o-rail-x`，两边都从这一个数算出来。
+ *   线：left = 中线 − 半个线宽；点：left = 中线 − 半个直径（再减去定位容器相对中线原点的偏移）。
+ *
+ * 中线的原点是各自定位容器的 padding box 左内边，所以点的 left
+ * 取决于点挂在谁身上：
+ *   - 记录卡里的点挂在 `.own-timeline` 上（`.own-row` 刻意不带 position，
+ *     这样点与线同一个定位容器，卡片内边距改动时两者一起走）；
+ *   - 人员列表里的点挂在 `.own-person` 上（那一条自己是 `position: relative`），
+ *     于是要把列表左内距 34 与卡片 1px 边框一起扣掉。
+ */
+.own-timeline,
+.own-people {
+  --o-rail-x: 17px;
+  --o-dot-d: 14px;
+}
+.own-timeline { position: relative; }
+.own-timeline .own-row { padding-left: 40px; border-radius: 14px; }
+.own-timeline::before {
+  content: ""; position: absolute; left: calc(var(--o-rail-x) - 1px); top: 30px; bottom: 30px;
+  width: 2px; background: var(--o-amber); opacity: 0.5;
+}
+.own-dot {
+  position: absolute; width: var(--o-dot-d); height: var(--o-dot-d); border-radius: 50%;
+  border: 3px solid var(--o-amber); background: var(--o-card); box-sizing: border-box;
+}
+/* 点挂在卡片上（行不定位）：中线原点就是卡片内边，直接减半个直径。 */
+.own-timeline .own-dot { left: calc(var(--o-rail-x) - var(--o-dot-d) / 2); }
+
+/* 人员 */
+/* 人员列表与记录卡同一条对齐规则：中线 --o-rail-x，卡片从 34px 开始 */
+.own-people { list-style: none; margin: 6px 0 0; padding: 0 0 0 34px; position: relative; }
+.own-people::before {
+  content: ""; position: absolute; left: calc(var(--o-rail-x) - 1px); top: 26px; bottom: 26px;
+  width: 2px; background: var(--o-amber); opacity: 0.5;
+}
+.own-person {
+  position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
+  margin: 8px 0; padding: 10px 14px; border-radius: 18px;
+  border: 1px solid var(--o-edge); background: var(--o-sub);
+  color: inherit; font: inherit; text-align: left; box-sizing: border-box;
+}
+.own-person.is-active { border-color: var(--o-amber); }
+/* 点挂在人员卡上：还要扣掉列表左内距 34 与卡片 1px 边框，才落回同一条中线。 */
+.own-person .own-dot { left: calc(var(--o-rail-x) - 34px - 1px - var(--o-dot-d) / 2); }
+.own-avatar {
+  width: 64px; height: 64px; flex: 0 0 auto; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; background: var(--o-card); border: 2px solid var(--o-edge);
+}
+.own-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.own-avatar em { font-style: normal; font-size: var(--m-font-metric); font-weight: var(--m-weight-bold); color: var(--o-dim); }
+.own-person-main { flex: 1; min-width: 0; }
+.own-person-main b { display: block; font-size: var(--m-font-title); font-weight: var(--m-weight-bold); }
+.own-person-main small { display: block; color: var(--o-dim); font-size: var(--m-font-caption); margin-top: 2px; }
+.own-role { color: var(--o-amber); font-weight: var(--m-weight-bold); }
+.own-needs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.own-needs em {
+  font-style: normal; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--o-edge); font-size: var(--m-font-caption); color: var(--o-dim);
+}
+
+.own-prefs { list-style: none; margin: 6px 0 0; padding: 0; }
+.own-prefs li {
+  display: flex; align-items: center; gap: 10px; min-height: 52px;
+  padding: 6px 0; border-bottom: 1px solid var(--o-edge); font-size: var(--m-font-title);
+}
+.own-prefs li:last-child { border-bottom: 0; }
+
+/* ── 视觉贴合修正 ───────────────────────────────────────── */
+
+/* 画像三格：定稿是并排三格，flex-wrap 会把第三格挤到下一行 */
+.own-page--light .own-stats,
+.own-page--dark .own-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.own-page--light .own-stat,
+.own-page--dark .own-stat { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 8px; }
+.own-page--light .own-stat b,
+.own-page--dark .own-stat b { font-size: var(--m-font-metric); }
+.own-page--light .own-stat-text,
+.own-page--dark .own-stat-text { font-size: var(--m-font-body) !important; }
+
+/* 保养依据折叠成一行（定稿是一行小字，不是一段） */
+.own-page--light .own-basis,
+.own-page--dark .own-basis { margin: 0 0 8px; color: var(--o-dim); font-size: var(--m-font-caption); }
+.own-page--light .own-basis summary,
+.own-page--dark .own-basis summary { cursor: pointer; min-height: 28px; list-style-position: inside; }
+.own-page--light .own-basis ul,
+.own-page--dark .own-basis ul { margin: 4px 0 0; padding-left: 18px; }
+
+/* 车辆卡底部那一行（知识库关联）：一句话，不是一个数值 */
+.own-cardfoot {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--o-edge);
+  color: var(--o-dim);
+  font-size: var(--m-font-caption);
+}
+
+/* ── 车机区：三态与能力摘要 ── */
+.own-kv { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.own-kv li { display: flex; justify-content: space-between; font-size: var(--m-font-body); }
+.own-kv li span { color: var(--hud-text-muted); }
+
+/* ── 偏好编辑与组合管理 ── */
+.own-form { display: grid; gap: 10px; margin-top: 8px; }
+.own-field { display: grid; gap: 4px; font-size: var(--m-font-body); }
+.own-field input { padding: 8px 10px; border: 1px solid var(--hud-divider); border-radius: 8px; font-size: var(--m-font-body); }
+.own-form-actions { display: flex; gap: 10px; }
+.own-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.own-chips .own-chip.is-on { background: var(--hud-pin); color: #fff; }
+.own-combo { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--hud-divider); }
+.own-combo--dead b { opacity: 0.6; }
+
+/* 成员与授权区（F-55-07）。与「常用人员」区并列且视觉同款：
+   两者是同一层级，样式分叉会让人以为其中一个更重要。 */
+.own-grant-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.own-grant-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--hud-card-bg);
+}
+
+.own-grant-name {
+  flex: 1;
+  font-size: var(--m-font-body);
+}
+
+.own-grant-role {
+  font-size: var(--m-font-caption);
+  opacity: 0.7;
+}
+
+.own-grant-remove {
+  border: none;
+  background: transparent;
+  color: var(--hud-danger);
+  font-size: var(--m-font-caption);
+  padding: 4px 6px;
+}
+
+.own-grant-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.own-grant-form input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  font-size: var(--m-font-title); /* 16px 以下 iOS 会自动放大页面 */
+}
+
+.own-grant-form select,
+.own-grant-form button {
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  padding: 0 10px;
+}
+
+/* ── 车机终端绑定（F-56-03）──
+ * 与上面的「成员与授权」区并列。它与档案页的「车机」区不同：
+ * 那个是舒适域能力（.own-card），这个是车上那块屏这台设备。 */
+.own-pair-steps {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: var(--hud-text-muted);
+  font-size: var(--m-font-body);
+  line-height: 1.7;
+}
+
+.own-pair-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  /* 同因：`width: 100%` + 左右内边距，本仓没有全局 box-sizing 复位。 */
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  /* 等宽 + 字距：32 位十六进制要能一眼对齐着抄 */
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--m-font-title); /* 16px 以下 iOS 会自动放大页面 */
+  letter-spacing: 0.06em;
+}
+
+.own-pair-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.own-pair-actions .own-secondary { margin-top: 0; }
+
+.own-pair-video {
+  width: 100%;
+  max-height: 240px;
+  margin-top: 12px;
+  border-radius: 10px;
+  background: #000;
+  object-fit: cover;
+}
+
+.own-pair-confirm {
+  margin: 0 0 8px;
+  font-size: var(--m-font-body);
+}
+
+/* 6 位码是这一屏唯一要被人隔着一块屏读出来的东西，给它最大的字号。 */
+.own-pair-code {
+  margin: 0 0 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--m-font-display);
+  font-weight: var(--m-weight-bold);
+  letter-spacing: 0.16em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 过期的码还留在屏上（不清空），但要一眼看出它已经不能用了 */
+.own-pair-code--dead {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+/* ── 移除授权的行内二次确认 ──
+ * 不用 window.confirm：wry 没实现 WKWebView 的 confirm 面板，它在 Tauri 里
+ * 不弹窗、直接返回 false。 */
+.own-grant-confirm {
+  flex-basis: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+}
+
+.own-grant-confirm p {
+  margin: 0 0 10px;
+  font-size: var(--m-font-body);
+  line-height: 1.6;
+  color: var(--hud-text-muted);
+}
+
+.own-grant-confirm-acts {
+  display: flex;
+  gap: 10px;
+}
+
+.own-grant-confirm-acts button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--hud-card-border);
+  background: transparent;
+  color: inherit;
+  font-size: var(--m-font-body);
+}
+
+.own-grant-confirm-acts .own-grant-remove {
+  border-color: var(--hud-danger);
+  color: var(--hud-danger);
+}
+
+/* ============================================================
+ * 新版 UI（定稿 `内部文档`
+ * 与 `profile-people-v1.png`）。
+ *
+ * 只覆盖浅色主题的几个 token 与卡片的圆角/阴影，使这一页的配色
+ * 与顶栏、地图钉、状态栏一致，不再用自己那一套蓝
+ * （`--o-blue: #4b8ff6`、`--o-text: #0a2a5a`）。深色主题不动。
+ * ============================================================ */
+.own-page--light {
+  --o-bg: var(--m-page-bg);
+  --o-card: var(--m-card-bg);
+  --o-sub: var(--m-inset-bg);
+  --o-edge: var(--hud-card-border);
+  --o-text: #1f3d63;   /* text/primary */
+  --o-dim: #6c8bb0;    /* text/secondary */
+  --o-blue: #3d8fd6;   /* blue/500 */
+  --o-amber: #f5a623;  /* amber/500 */
+  --o-ok: #2fbf9b;
+  --o-danger: #c0392b;
+}
+.own-page--light .own-card {
+  border-radius: var(--m-radius-card);
+  box-shadow: var(--m-card-shadow);
+}
+.own-page--light .own-title { font-size: var(--m-font-title); font-weight: var(--m-weight-bold); }
+/* 主行动与主数值走琥珀；一屏只有一个实心橙。 */
+.own-page--light .own-cta {
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  border: none;
+  color: #fff;
+  font-weight: var(--m-weight-bold);
+  box-shadow: 0 8px 20px rgba(255, 190, 90, 0.45);
+}

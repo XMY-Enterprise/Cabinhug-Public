@@ -1,0 +1,410 @@
+/**
+ * 并行 fan-out 与结构化汇聚单测。零依赖。
+ *
+ * 两条重点：
+ *  1. 真并行的判据是时间轴重叠（AC-13-1）：串行伪并行在功能上无法区分；
+ *  2. 汇聚不得退化为文本拼接：约束求解必须改动数据结构（F-13-02 / F-18-07）。
+ */
+
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import { hasParallelOverlap, overlaps, runFanout, type BranchResult } from "../src/graph/fanout";
+import { mergeBranches, solve, PENDING_STOP, type TripDraft } from "../src/graph/merge";
+import { driveText, leg, legsFrom } from "./helpers/drive-legs";
+import { parseTripLimits } from "../src/graph/intent";
+import { runTripFanout } from "../src/graph/subgraphs/trip";
+import type { ChatStreamer } from "../src/llm";
+
+/** 可控延时的假 streamer：按 agent 返回不同内容与耗时。 */
+function fakeStreamer(spec: Record<string, { ms: number; text?: string; throws?: string }>): ChatStreamer {
+  return async function* (_messages, hooks) {
+    const agent = hooks?.agent ?? "unknown";
+    const s = spec[agent] ?? { ms: 1, text: "" };
+    await new Promise((r) => setTimeout(r, s.ms));
+    if (s.throws) throw new Error(s.throws);
+    yield s.text ?? "";
+  };
+}
+
+describe("并行 fan-out", () => {
+  it("两条分支时间区间重叠（AC-13-1）", async () => {
+    const streamer = fakeStreamer({ trip: { ms: 60, text: "A" }, ownership: { ms: 60, text: "B" } });
+    const results = await runFanout(streamer, [
+      { agent: "trip", prompt: "p" },
+      { agent: "ownership", prompt: "q" },
+    ]);
+    assert.equal(results.length, 2);
+    assert.ok(overlaps(results[0], results[1]), `两分支应重叠：${JSON.stringify(results)}`);
+    assert.ok(hasParallelOverlap(results));
+  });
+
+  it("并发上限为 1 时退化为串行，重叠断言随即失败（验证断言的鉴别力）", async () => {
+    const streamer = fakeStreamer({ a: { ms: 40, text: "A" }, b: { ms: 40, text: "B" } });
+    const results = await runFanout(
+      streamer,
+      [
+        { agent: "a", prompt: "p" },
+        { agent: "b", prompt: "q" },
+      ],
+      { maxConcurrency: 1 },
+    );
+    assert.ok(!hasParallelOverlap(results), "串行执行不应有重叠——否则断言形同虚设");
+  });
+
+  it("单分支失败不导致整体失败，以失败态汇聚（F-13-04）", async () => {
+    const streamer = fakeStreamer({ ok: { ms: 5, text: "good" }, bad: { ms: 5, throws: "upstream 500" } });
+    const results = await runFanout(streamer, [
+      { agent: "ok", prompt: "p" },
+      { agent: "bad", prompt: "q" },
+    ]);
+    assert.equal(results.find((r) => r.agent === "ok")?.status, "ok");
+    const bad = results.find((r) => r.agent === "bad")!;
+    assert.equal(bad.status, "failed");
+    assert.match(bad.error ?? "", /upstream 500/);
+  });
+
+  it("超时分支单独收敛为 timeout，不拖垮其它分支", async () => {
+    const streamer = fakeStreamer({ fast: { ms: 5, text: "ok" }, slow: { ms: 500, text: "late" } });
+    const results = await runFanout(
+      streamer,
+      [
+        { agent: "fast", prompt: "p" },
+        { agent: "slow", prompt: "q" },
+      ],
+      { timeoutMs: 50 },
+    );
+    assert.equal(results.find((r) => r.agent === "fast")?.status, "ok");
+    assert.equal(results.find((r) => r.agent === "slow")?.status, "timeout");
+  });
+
+  it("永不 reject：所有失败都收敛成状态，调用方拿不到整体失败", async () => {
+    const streamer = fakeStreamer({ a: { ms: 1, throws: "boom" }, b: { ms: 1, throws: "bang" } });
+    const results = await runFanout(streamer, [
+      { agent: "a", prompt: "p" },
+      { agent: "b", prompt: "q" },
+    ]);
+    assert.equal(results.length, 2);
+    assert.ok(results.every((r) => r.status === "failed"));
+  });
+
+  it("并发上限生效：8 条分支上限 2 时不会同时起 8 个", async () => {
+    let live = 0;
+    let peak = 0;
+    const streamer: ChatStreamer = async function* () {
+      live += 1;
+      peak = Math.max(peak, live);
+      await new Promise((r) => setTimeout(r, 20));
+      live -= 1;
+      yield "x";
+    };
+    await runFanout(
+      streamer,
+      Array.from({ length: 8 }, (_, i) => ({ agent: `a${i}`, prompt: "p" })),
+      { maxConcurrency: 2 },
+    );
+    assert.ok(peak <= 2, `并发峰值应 ≤2，实际 ${peak}`);
+  });
+});
+
+describe("[ADR-012] 数量上限由意图理解给，不从约束文本里解析", () => {
+  it("模型按小时说，归一成分钟", () => {
+    assert.equal(parseTripLimits({ maxLegHours: 2 })?.maxLegMinutes, 120);
+    assert.equal(parseTripLimits({ maxLegHours: 1.5 })?.maxLegMinutes, 90);
+    assert.equal(parseTripLimits({ maxLegHours: "2" })?.maxLegMinutes, 120, "字符串数字也收");
+  });
+
+  it("没给就不设上限，不臆造", () => {
+    assert.equal(parseTripLimits(undefined), undefined);
+    assert.equal(parseTripLimits({}), undefined);
+    assert.equal(parseTripLimits({ maxLegHours: "两小时" }), undefined, "非数字当没给");
+  });
+
+  it("越界的那一项当没给：拿错的上限去拆段比没有上限更糟", () => {
+    assert.equal(parseTripLimits({ maxLegHours: 0 }), undefined);
+    assert.equal(parseTripLimits({ maxLegHours: 99 }), undefined);
+    assert.equal(parseTripLimits({ days: 0 }), undefined);
+    assert.equal(parseTripLimits({ days: 31 }), undefined);
+    assert.equal(parseTripLimits({ minRangeMarginPct: 0 }), undefined);
+    assert.equal(parseTripLimits({ minRangeMarginPct: 101 }), undefined);
+  });
+
+  it("一项合法一项不合法：只丢不合法的那一项", () => {
+    assert.deepEqual(parseTripLimits({ days: 3, maxLegHours: 99 }), { days: 3 });
+  });
+});
+
+describe("结构化汇聚（不是文本拼接 —— F-13-02 / F-18-07）", () => {
+  it("超限分段被实际拆开，而不是在文案里提一句「建议休息」", () => {
+    const draft: TripDraft = { legs: legsFrom([300]) };
+    const r = solve(draft, { maxLegMinutes: 120 });
+    assert.ok(r.draft.legs.length > 1, "300 分钟必须被拆分");
+    assert.ok(
+      r.draft.legs.every((l) => l.minutes <= 120),
+      `每段都应 ≤120，实际 ${JSON.stringify(r.draft.legs.map((l) => l.minutes))}`,
+    );
+    const total = r.draft.legs.reduce((a, l) => a + l.minutes, 0);
+    assert.ok(Math.abs(total - 300) < 0.01, "拆分不改变总时长");
+  });
+
+  it("拆分后每个新间隔都补了占位终点", () => {
+    const r = solve({ legs: legsFrom([300]) }, { maxLegMinutes: 120 });
+    assert.equal(r.draft.legs.filter((l) => l.to.name === PENDING_STOP).length, r.draft.legs.length - 1);
+  });
+
+  it("续航余量不足时显式呈现矛盾，不隐藏（F-13-05）", () => {
+    const r = solve({ legs: legsFrom([60]), rangeMarginPct: 5 }, { minRangeMarginPct: 20 });
+    assert.equal(r.satisfied, false);
+    assert.equal(r.violations.length, 1);
+    assert.match(r.violations[0], /5%.*20%/);
+  });
+
+  it("续航未知时说「未知」，不当作满足", () => {
+    const r = solve({ legs: legsFrom([60]) }, { minRangeMarginPct: 20 });
+    assert.equal(r.satisfied, false);
+    assert.match(r.violations[0], /未知/);
+  });
+
+  it("约束全满足时 satisfied 为 true 且无 violations", () => {
+    const r = solve({ legs: legsFrom([90, 100], ["服务区"]), rangeMarginPct: 30 }, { maxLegMinutes: 120, minRangeMarginPct: 20 });
+    assert.equal(r.satisfied, true);
+    assert.deepEqual(r.violations, []);
+  });
+});
+
+describe("分支合并", () => {
+  it("失败分支体现在 missing，不静默吞掉（F-13-04）", () => {
+    const r = mergeBranches(
+      [
+        { agent: "trip", status: "ok", text: driveText(legsFrom([300])) },
+        { agent: "ownership", status: "timeout", text: "" },
+      ],
+      { maxLegMinutes: 120 },
+    );
+    assert.ok(r.missing.some((m) => m.includes("ownership")), `missing 应含失败分支：${JSON.stringify(r.missing)}`);
+    assert.equal(r.satisfied, false, "有缺失时不能声称满足");
+    // 已有分支的约束求解照常进行
+    assert.ok(r.draft.legs.every((l) => l.minutes <= 120));
+  });
+
+  it("分支只返回自然语言时记入 missing，不猜数字", () => {
+    const r = mergeBranches(
+      [{ agent: "trip", status: "ok", text: "建议早上出发，路上注意休息。" }],
+      { maxLegMinutes: 120 },
+    );
+    assert.ok(r.missing.some((m) => m.includes("结构化")));
+    assert.deepEqual(r.draft.legs, [], "抽不到就是空，不编");
+  });
+
+  it("正文里的段列表过不了逐段校验就当没交，不猜半份", () => {
+    const bad = [leg(1, "outbound", "上海", "A", 60), leg(1, "outbound", "B", "徐州", 60, "overnight")]; // 接续断裂
+    const r = mergeBranches([{ agent: "trip", status: "ok", text: driveText(bad) }], {});
+    assert.deepEqual(r.draft.legs, []);
+    assert.ok(r.missing.some((m) => m.includes("结构化")));
+  });
+});
+
+describe("分支进展实时下发（F-13-07）", () => {
+  it("started 在发起之前上报：晚报只能事后告知曾并行", async () => {
+    const seen: string[] = [];
+    await runFanout(
+      fakeStreamer({ "trip-task": { ms: 2, text: "x" }, "ownership-task": { ms: 3, text: "y" } }),
+      [
+        { agent: "trip-task", prompt: "a" },
+        { agent: "ownership-task", prompt: "b" },
+      ],
+      { onBranchEvent: (e) => seen.push(`${e.agent}:${e.status}`) },
+    );
+    // 两条腿都要先 started 再有结果，端上才知道"现在有几条腿在跑"。
+    assert.equal(seen.filter((s) => s.endsWith(":started")).length, 2);
+    assert.ok(seen.indexOf("trip-task:started") < seen.indexOf("trip-task:ok"));
+  });
+
+  it("结束时带耗时：端上显示「路线规划已完成（2.1 秒）」", async () => {
+    const seen: Array<{ status: string; durationMs?: number }> = [];
+    await runFanout(fakeStreamer({ "trip-task": { ms: 2, text: "x" }, "ownership-task": { ms: 3, text: "y" } }), [{ agent: "trip-task", prompt: "a" }], {
+      onBranchEvent: (e) => seen.push({ status: e.status, durationMs: e.durationMs }),
+    });
+    const done = seen.find((s) => s.status === "ok");
+    assert.ok(done && typeof done.durationMs === "number");
+  });
+
+  it("失败与超时分开报：一个是出错，一个是没等到，用户的应对不同", async () => {
+    const failed: string[] = [];
+    await runFanout(
+      fakeStreamer({ "trip-task": { ms: 1, throws: "boom" } }),
+      [{ agent: "trip-task", prompt: "a" }],
+      { onBranchEvent: (e) => failed.push(e.status) },
+    );
+    assert.ok(failed.includes("failed"));
+    assert.ok(!failed.includes("timeout"));
+  });
+
+  it("没有回调时照常跑", async () => {
+    const r = await runFanout(fakeStreamer({ "trip-task": { ms: 2, text: "x" }, "ownership-task": { ms: 3, text: "y" } }), [{ agent: "trip-task", prompt: "a" }], {});
+    assert.equal(r[0].status, "ok");
+  });
+
+  it("失败即发，不等汇聚：等到汇聚完成才标识会让用户多等一轮", async () => {
+    const events: string[] = [];
+    let settledBeforeFanoutDone: boolean | undefined;
+    const fanout = runFanout(
+      fakeStreamer({
+        "trip-task": { ms: 1, throws: "boom" },
+        "ownership-task": { ms: 60, text: "y" },
+      }),
+      [
+        { agent: "trip-task", prompt: "a" },
+        { agent: "ownership-task", prompt: "b" },
+      ],
+      {
+        onBranchEvent: (e) => {
+          events.push(`${e.agent}:${e.status}`);
+          // 失败事件到达时另一条分支尚未收尾，即"先于汇聚完成"。
+          if (e.agent === "trip-task" && e.status === "failed") {
+            settledBeforeFanoutDone = !events.includes("ownership-task:ok");
+          }
+        },
+      },
+    );
+    await fanout;
+    assert.ok(events.includes("trip-task:failed"));
+    assert.equal(settledBeforeFanoutDone, true, "失败事件应在另一分支完成前就发出");
+  });
+});
+
+describe("超时必须把底层调用一起停掉（F-14-04）", () => {
+  /**
+   * 分支判 timeout 后若不取消底层 ACP 调用，它会一直跑到 pi 侧超时
+   *（分支 60s 判超时、pi 侧 120s 才收时，多出约 60 秒），期间继续消耗 token，结果无人使用。
+   *
+   * 流静默时 `break` 退出 `for await` 无效：拿不到下一个 chunk 就走不到 break。
+   * 因此判据是"是否收到取消信号"。
+   */
+
+  /** 发出几段后不再输出、也不结束的流。 */
+  function silentStreamer(seen: { aborted: boolean; abortedAt?: number }): ChatStreamer {
+    return async function* (_messages, hooks) {
+      yield "开了个头";
+      hooks?.signal?.addEventListener("abort", () => {
+        seen.aborted = true;
+        seen.abortedAt = Date.now();
+      });
+      // 之后静默：不 yield、不结束，只能靠取消信号终止。
+      await new Promise(() => {});
+    };
+  }
+
+  it("流静默时也能取消", async () => {
+    const seen = { aborted: false } as { aborted: boolean; abortedAt?: number };
+    const started = Date.now();
+    const results = await runFanout(
+      silentStreamer(seen),
+      [{ agent: "trip-task", prompt: "p" }],
+      { timeoutMs: 80 },
+    );
+
+    assert.equal(results[0].status, "timeout");
+    assert.equal(seen.aborted, true, "超时了却没发出取消 = 底层还在烧");
+    assert.ok(
+      (seen.abortedAt ?? Infinity) - started < 400,
+      "取消要在超时那一刻发出，不能等流自己结束——它不会结束",
+    );
+  });
+
+  it("正常收口的分支不该收到取消信号", async () => {
+    const seen = { aborted: false };
+    const streamer: ChatStreamer = async function* (_m, hooks) {
+      hooks?.signal?.addEventListener("abort", () => {
+        seen.aborted = true;
+      });
+      yield "很快就好";
+    };
+    const results = await runFanout(streamer, [{ agent: "trip-task", prompt: "p" }], {
+      timeoutMs: 500,
+    });
+    assert.equal(results[0].status, "ok");
+    assert.equal(seen.aborted, false, "误发取消会把正常结果也掐掉");
+  });
+
+  it("一条分支超时不牵连另一条（既有语义不变）", async () => {
+    const seen = { aborted: false } as { aborted: boolean };
+    const streamer: ChatStreamer = async function* (_m, hooks) {
+      if (hooks?.agent === "trip-task") {
+        hooks?.signal?.addEventListener("abort", () => {
+          seen.aborted = true;
+        });
+        await new Promise(() => {});
+        return;
+      }
+      yield "用车分支正常返回";
+    };
+    const results = await runFanout(
+      streamer,
+      [
+        { agent: "trip-task", prompt: "p" },
+        { agent: "ownership-task", prompt: "q" },
+      ],
+      { timeoutMs: 80 },
+    );
+    assert.equal(results.find((r) => r.agent === "trip-task")!.status, "timeout");
+    assert.equal(results.find((r) => r.agent === "ownership-task")!.status, "ok");
+    assert.equal(seen.aborted, true);
+  });
+});
+
+describe("补能评估按能源类型分叉（F-23-09）", () => {
+  /**
+   * 编排层的补能提示词必须按能源类型分叉：若对燃油车也要求"给出续航余量百分比"，
+   * 模型会按电车口径作答（如"中途必须充一次电"）。
+   *
+   * 断言对象是发给子 Agent 的提示词本身，而不是模型的回答：
+   * 回答随模型漂移，提示词由编排层负责。
+   */
+  function capturePrompts(): { prompts: string[]; streamer: ChatStreamer } {
+    const prompts: string[] = [];
+    const streamer: ChatStreamer = async function* (messages) {
+      prompts.push(messages.map((m) => m.content).join("\n"));
+      yield "ok";
+    };
+    return { prompts, streamer };
+  }
+
+  const ownershipPrompt = (prompts: string[]): string =>
+    prompts.find((p) => p.includes("补能评估") || p.includes("续航评估")) ?? "";
+
+  it("燃油车不问续航余量百分比：没有油量数据时给出的数是编的", async () => {
+    const { prompts, streamer } = capturePrompts();
+    await runTripFanout(streamer, { goal: "去黄山", constraints: [], energyType: "icev" });
+    const p = ownershipPrompt(prompts);
+    assert.match(p, /燃油车/);
+    assert.match(p, /不要给续航余量百分比/);
+    assert.ok(!p.includes("rangeMarginPct"), "schema 提示里也不能留这个字段——留着模型会照填");
+  });
+
+  it("电车照常问续航余量，且 schema 里有那个字段", async () => {
+    const { prompts, streamer } = capturePrompts();
+    await runTripFanout(streamer, { goal: "去黄山", constraints: [], energyType: "bev" });
+    const p = ownershipPrompt(prompts);
+    assert.match(p, /续航余量百分比/);
+    assert.ok(p.includes("rangeMarginPct"));
+  });
+
+  it("「不知道」是独立的一档，不归到电车或燃油任一侧", async () => {
+    const { prompts, streamer } = capturePrompts();
+    await runTripFanout(streamer, { goal: "去黄山", constraints: [] }); // 不传 energyType
+    const p = ownershipPrompt(prompts);
+    assert.match(p, /没有这辆车的能源类型/);
+    assert.match(p, /不要假设/);
+    assert.ok(!p.includes("rangeMarginPct"));
+    // 查断言式的那句（"这是一辆燃油车"），而不是"燃油车"三个字：
+    // 后者也会出现在"不要假设它是电车或燃油车"这句否定里。
+    assert.ok(!p.includes("这是一辆燃油车"), "不知道时不能断言它是燃油车");
+  });
+
+  it("插混按电车口径：它有续航余量这个概念", async () => {
+    const { prompts, streamer } = capturePrompts();
+    await runTripFanout(streamer, { goal: "去黄山", constraints: [], energyType: "phev" });
+    assert.match(ownershipPrompt(prompts), /续航余量百分比/);
+  });
+});

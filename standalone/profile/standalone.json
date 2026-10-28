@@ -1,0 +1,72 @@
+{
+  "schema": "cabinhug-standalone-profile/v1",
+  "capabilitiesOff": [
+    "photo-diagnosis",
+    "ownership-qa",
+    "service-qa",
+    "buying-advice",
+    "test-drive",
+    "cabin-control",
+    "voice"
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "WEATHER_PROVIDER": "amap",
+    "GUARD_PROVIDER": "aliyun",
+    "CABINHUG_TOOLS": "real",
+    "CABINHUG_TRIP_ENERGY_BRANCH": "off",
+    "GUIDE_QUEUE": "on",
+    "GUIDE_BRIEF_TTL_DAYS": "14",
+    "CABINHUG_OWNER_BILLING": "on"
+  },
+  "credentials": [
+    {
+      "group": "deepseek",
+      "label": "DeepSeek",
+      "fields": [{ "env": "DEEPSEEK_API_KEY", "label": "API Key" }]
+    },
+    {
+      "group": "aliyun-guard",
+      "label": "阿里云内容审核",
+      "fields": [
+        { "env": "Aliyun_AccessKey_ID", "label": "AccessKey ID" },
+        { "env": "Aliyun_AccessKey_Secret", "label": "AccessKey Secret" }
+      ]
+    },
+    {
+      "group": "amap",
+      "label": "高德开放平台",
+      "fields": [
+        { "env": "AMAP_SERVER_KEY", "label": "Web 服务 Key" },
+        { "env": "AMAP_JS_KEY", "label": "Web 端（JS API）Key", "client": true },
+        { "env": "AMAP_JS_SECURITY_CODE", "label": "JS 安全密钥", "client": true }
+      ]
+    }
+  ],
+  "services": [
+    {
+      "name": "agent-runtime",
+      "package": "enterprise/backend/agent-runtime",
+      "portEnv": "AGENT_RUNTIME_PORT",
+      "bindEnv": "AGENT_RUNTIME_BIND",
+      "urlEnv": "AGENT_RUNTIME_URL",
+      "health": "/internal/health/runtime"
+    },
+    {
+      "name": "gateway",
+      "package": "enterprise/backend/gateway",
+      "portEnv": "GATEWAY_PORT",
+      "bindEnv": "GATEWAY_BIND",
+      "urlEnv": "CABINHUG_GATEWAY_URL",
+      "health": "/healthz"
+    },
+    {
+      "name": "worker",
+      "package": "enterprise/backend/worker",
+      "portEnv": "WORKER_HEALTH_PORT",
+      "bindEnv": "WORKER_HEALTH_BIND",
+      "urlEnv": "WORKER_HEALTH_URL",
+      "health": "/health"
+    }
+  ]
+}

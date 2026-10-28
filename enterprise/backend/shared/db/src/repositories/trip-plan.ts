@@ -1,0 +1,506 @@
+/**
+ * 已确认行程仓储。
+ *
+ * 「当前行程」的语义收在这一层：最新一条 confirmed。
+ * 取消不删行，保留可审计的历史（与 vehicle_profile_write 同一条纪律），
+ * 网关与座舱只消费 `currentForUser`，被取消的行对它们不存在。
+ */
+
+import { PrismaClient, Prisma } from "@prisma/client";
+import type { TripPlanNav, TripPlanSnapshot } from "@cabinhug/shared";
+
+export interface CommittedTripPlan {
+  planId: string;
+  userId: string;
+  sessionId: string;
+  status: TripPlanStatus;
+  /** 整份快照，列表与查询也回它，见 `list` 的说明。 */
+  plan: TripPlanSnapshot;
+  startDate?: string;
+  /** 结束日 = 出发日 + 天数 - 1；没有出发日时也没有它。 */
+  endDate?: string;
+  committedAt: Date;
+  /**
+   * 最后一次被 `update`（trip_plan_update）改写的时刻。
+   * 早于它的核查作废，因为针对的是旧版行程。没改过时等于 committedAt。
+   * 可选：内存实现与测试夹具可以不提供，消费方按 `updatedAt ?? committedAt` 取。
+   */
+  updatedAt?: Date;
+}
+
+export type TripPlanStatus = "confirmed" | "cancelled";
+
+/** 多条件查询。字段全可选，全不给就等价于「未取消的全部」。 */
+export interface TripPlanQuery {
+  /** 目的地关键字，大小写不敏感的包含匹配。 */
+  destination?: string;
+  /** 出发日下界（含），`YYYY-MM-DD`。 */
+  startFrom?: string;
+  /** 出发日上界（含）。 */
+  startTo?: string;
+  /**
+   * 这一天落在行程期内（`startDate <= covers <= endDate`），`YYYY-MM-DD`。
+   *
+   * 与 startFrom / startTo 不同，那两个比的是出发日。例如车主说「9 月 26 号那条」，
+   * 一份 9/25 出发的三天行程按出发日对不上，按覆盖才对得上。
+   */
+  covers?: string;
+  minDays?: number;
+  maxDays?: number;
+  /** 默认只看 `confirmed`：取消掉的与被改掉的对"我有哪些行程"是噪音。 */
+  status?: TripPlanStatus | TripPlanStatus[];
+  limit?: number;
+}
+
+/** 列表与查询的默认条数。给模型的返回必须有上限，控制 token 消耗。 */
+export const TRIP_PLAN_LIST_DEFAULT = 10;
+/** 上限。调用方给再大也截断到这里。 */
+export const TRIP_PLAN_LIST_MAX = 50;
+
+export interface TripPlanRepository {
+  /** 一次确认一行（快照有审计价值），返回新行。 */
+  commit(userId: string, sessionId: string, plan: TripPlanSnapshot): Promise<CommittedTripPlan>;
+  /** 取消当前行程：置最新 confirmed 为 cancelled；没有可取消的返回 null。 */
+  cancelCurrent(userId: string): Promise<CommittedTripPlan | null>;
+  /** 按 id 取消。必须带 userId，否则可以取消别人的行程。 */
+  cancelById(userId: string, planId: string): Promise<CommittedTripPlan | null>;
+  /**
+   * 变更：原地改写那一行，planId 不变。
+   *
+   * planId 稳定意味着端上/日历/提醒里已经引用它的地方不用跟着改，
+   * 用户口中的"我那趟广州"也始终是同一份。
+   */
+  update(
+    userId: string,
+    planId: string,
+    sessionId: string,
+    plan: TripPlanSnapshot,
+  ): Promise<CommittedTripPlan | null>;
+  /**
+   * 置/清导航状态：只动快照里的 `nav` 一栏，其余字段不变。
+   *
+   * `nav` 给 null 即结束导航（删键，不写空对象，端上按键是否存在判断是否在导航）。
+   * `planId` 不给就作用于当前行程（最新一条 confirmed），与 `cancelCurrent` 同口径。
+   * 改不到（不属于这个人 / 已取消 / 库里没有）返回 null，让调用方明说没开始。
+   */
+  setNav(
+    userId: string,
+    nav: TripPlanNav | null,
+    planId?: string,
+  ): Promise<CommittedTripPlan | null>;
+  /** 最新一条 confirmed；没有返回 null。 */
+  currentForUser(userId: string): Promise<CommittedTripPlan | null>;
+  /**
+   * 按 id 读一份仍然 confirmed 的行程；不存在 / 不属于这个人 / 已取消都返回 null。
+   *
+   * 与 `currentForUser` 不同：「当前行程」是最新一条 confirmed，而车主能从列表里
+   * 载入并变更任何一程。沿途服务与目的地推荐的后台补算在写回前核对的是
+   * "这一行是否仍然有效"，不是它是否最新，所以读这条；用 `currentForUser`
+   * 核对会把非最新行程的补算结果全部丢弃。
+   */
+  confirmedById(userId: string, planId: string): Promise<CommittedTripPlan | null>;
+  /**
+   * 未取消的行程，按相对今天的临近程度排序，返回整份快照。
+   *
+   * 排序三档：进行中（今天在起止日之间）→ 未来（出发日越近越前）→ 已结束（越近越前）。
+   * 返回整份而不是摘要：Agent 拿到摘要还要再查一次才能回答"第二天去哪"，
+   * 多一次往返的代价高于多传的字节。条数由 `limit` 控。
+   */
+  list(userId: string, limit?: number, today?: string): Promise<CommittedTripPlan[]>;
+  /** 多条件查询，排序与返回同 `list`。 */
+  query(userId: string, q: TripPlanQuery, today?: string): Promise<CommittedTripPlan[]>;
+  /**
+   * 后台对比用：某会话里确认/取消过的全部行程，按确认时间升序。
+   * 含被取消的：路径优化的"第一版"常常正是后来被取消重排的那份。
+   * 前缀匹配的理由与 `trip_route_audits` 相同：会话 id 可能带 `#turn` 后缀。
+   */
+  listBySessionPrefix(sessionId: string): Promise<CommittedTripPlan[]>;
+  /**
+   * 后台会话列表用：一批会话各自最新一份行程（含已取消，状态由调用方展示）。
+   * 一次查询、按前缀归位，避免列表一页 50 条逐条查询的 N+1。
+   * 没有行程的会话不在返回的 Map 里，调用方按"没有"处理。
+   */
+  latestBySessionPrefixes(sessionIds: readonly string[]): Promise<Map<string, CommittedTripPlan>>;
+  /**
+   * 「活动」行程：confirmed 且（结束日 >= 今天，或没定日期）。
+   * 与 `query` 的区别只在不带已结束的：主页列表与每日核查不看它们。
+   * 排序见 `orderActive`：进行中 → 未来 → 未定日期 → 已结束（`endDate` 列为空的老行
+   * SQL 层无法排除，排在末尾）。
+   */
+  activeForUser(userId: string, today?: string, limit?: number): Promise<CommittedTripPlan[]>;
+  /**
+   * 跨用户的活动行程（worker 扫全量用）。上限 `limit`（缺省 500），到顶说明需要分页，
+   * 调用方按返回条数等于上限来判断并告警，不静默截断。
+   */
+  activeAll(today: string, limit?: number): Promise<CommittedTripPlan[]>;
+}
+
+type Row = {
+  id: string;
+  userId: string;
+  sessionId: string;
+  status: string;
+  plan: unknown;
+  startDate: string | null;
+  endDate: string | null;
+  committedAt: Date;
+  updatedAt: Date;
+};
+
+function toDomain(r: Row): CommittedTripPlan {
+  return {
+    planId: r.id,
+    userId: r.userId,
+    sessionId: r.sessionId,
+    status: r.status as CommittedTripPlan["status"],
+    plan: r.plan as TripPlanSnapshot,
+    startDate: r.startDate ?? undefined,
+    endDate: r.endDate ?? undefined,
+    committedAt: r.committedAt,
+    updatedAt: r.updatedAt,
+  };
+}
+
+/** `activeAll` 的缺省上限：单机 worker 一次扫得动的量；到顶就该分页，见接口注释。 */
+export const ACTIVE_ALL_DEFAULT_LIMIT = 500;
+
+/**
+ * 行上的结束日。`endDate` 列比 `startDate` 晚加，老行为 `null`，
+ * 此时按快照的天数补算，不当作"没有结束日"（否则这一程永远被视为还在前面）。
+ */
+function rowEndDate(r: Row): string | undefined {
+  if (r.endDate) return r.endDate;
+  const days = (r.plan as TripPlanSnapshot | null)?.days ?? 1;
+  return endDateOf(r.startDate ?? undefined, days);
+}
+
+/**
+ * 活动行程的排序：进行中（出发日 <= 今天且没走完）按出发日升序 → 未来按出发日升序
+ * → 没定日期按确认时间降序 → 已结束的沉到末尾（最近结束的在前）。
+ * 在内存里排，因为单个用户的活动行程总量小。
+ *
+ * `activeForUser` 的 `endDate IS NULL` 分支用于放行"没定日期"的行程，同时也会放行
+ * `endDate` 列为空的已结束老行；它们出发日最早，按出发日升序会排在列表首条。
+ * 因此这里用 `rowEndDate` 补出结束日，已结束的排到末尾但不剔除：
+ * 车主仍要能在列表里打开走完的行程查看路线。
+ */
+export function orderActive(rows: readonly Row[], today: string): CommittedTripPlan[] {
+  const ended = (r: Row) => {
+    const end = rowEndDate(r);
+    return end !== undefined && end < today;
+  };
+  const live = rows.filter((r) => !ended(r));
+  const finished = rows.filter(ended);
+  const ongoing = live.filter((r) => r.startDate !== null && r.startDate <= today);
+  const upcoming = live.filter((r) => r.startDate !== null && r.startDate > today);
+  const undated = live.filter((r) => r.startDate === null);
+  const byStart = (a: Row, b: Row) => (a.startDate ?? "").localeCompare(b.startDate ?? "");
+  ongoing.sort(byStart);
+  upcoming.sort(byStart);
+  undated.sort((a, b) => b.committedAt.getTime() - a.committedAt.getTime());
+  finished.sort((a, b) => byStart(b, a));
+  return [...ongoing, ...upcoming, ...undated, ...finished].map(toDomain);
+}
+
+/**
+ * 结束日 = 出发日 + 天数 - 1。没有出发日就没有结束日，不拿今天顶替，
+ * 否则没定日期的行程会被当作"正在进行中"。
+ */
+export function endDateOf(startDate: string | undefined, days: number): string | undefined {
+  if (!startDate) return undefined;
+  const d = new Date(`${startDate}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return undefined;
+  d.setUTCDate(d.getUTCDate() + Math.max(days, 1) - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * 把一批（已按 committedAt 降序的）行程行按会话前缀归位，每个前缀只留最新一份。
+ * 按最长的匹配前缀归：`sess-1` 与 `sess-12` 同页时不能把后者的行程算给前者。
+ * 纯函数，供单测。
+ */
+export function assignLatestByPrefix<R extends { sessionId: string }>(
+  rowsNewestFirst: readonly R[],
+  prefixes: readonly string[],
+): Map<string, R> {
+  const out = new Map<string, R>();
+  for (const r of rowsNewestFirst) {
+    const owner = prefixes
+      .filter((id) => r.sessionId.startsWith(id))
+      .sort((a, b) => b.length - a.length)[0];
+    if (!owner || out.has(owner)) continue;
+    out.set(owner, r);
+  }
+  return out;
+}
+
+export function createTripPlanRepository(prisma: PrismaClient): TripPlanRepository {
+  return {
+    async commit(userId, sessionId, plan) {
+      const row = await prisma.tripPlan.create({
+        data: {
+          userId,
+          sessionId,
+          status: "confirmed",
+          destination: plan.destination,
+          startDate: plan.startDate ?? null,
+          endDate: endDateOf(plan.startDate, plan.days) ?? null,
+          days: plan.days,
+          // 落库的快照恒为 confirmed：图状态里的 status 是草案生命周期，
+          // 这里存的是确认那一刻的快照，两者分开。
+          plan: { ...plan, status: "confirmed" } as unknown as Prisma.InputJsonValue,
+        },
+      });
+      return toDomain(row as Row);
+    },
+
+    async cancelCurrent(userId) {
+      const latest = await prisma.tripPlan.findFirst({
+        where: { userId, status: "confirmed" },
+        orderBy: { committedAt: "desc" },
+      });
+      if (!latest) return null;
+      const row = await prisma.tripPlan.update({
+        where: { id: latest.id },
+        data: {
+          status: "cancelled",
+          // 快照内的 status 一并置位：网关原样返回 plan JSON，
+          // 行状态与快照状态不一致会让端上判错"这是不是当前行程"。
+          plan: { ...(latest.plan as object), status: "cancelled" } as Prisma.InputJsonValue,
+        },
+      });
+      return toDomain(row as Row);
+    },
+
+    async cancelById(userId, planId) {
+      // 条件里必须带 userId：只按 planId 更新会让知道 id 的人取消别人的行程。
+      const r = await prisma.tripPlan.updateMany({
+        where: { id: planId, userId, status: "confirmed" },
+        data: { status: "cancelled" },
+      });
+      if (r.count === 0) return null;
+      const row = await prisma.tripPlan.findFirst({ where: { id: planId, userId } });
+      if (!row) return null;
+      // 快照内的 status 一并置位（与 cancelCurrent 同因：两处不一致端上会判错）。
+      const fixed = await prisma.tripPlan.update({
+        where: { id: planId },
+        data: { plan: { ...(row.plan as object), status: "cancelled" } as Prisma.InputJsonValue },
+      });
+      return toDomain(fixed as Row);
+    },
+
+    async update(userId, planId, sessionId, plan) {
+      /*
+       * 原地改写，planId 不变。
+       *
+       * `updateMany` 而不是 `update`：where 里要能带 userId + status，
+       * 防止按 planId 改别人的行程，与 `cancelById` 同一条。
+       * 改不到（不属于这个人 / 已取消）返回 null，让调用方明确告知未改动，不静默成功。
+       */
+      const r = await prisma.tripPlan.updateMany({
+        where: { id: planId, userId, status: "confirmed" },
+        data: {
+          sessionId,
+          destination: plan.destination,
+          startDate: plan.startDate ?? null,
+          endDate: endDateOf(plan.startDate, plan.days) ?? null,
+          days: plan.days,
+          plan: { ...plan, status: "confirmed" } as unknown as Prisma.InputJsonValue,
+        },
+      });
+      if (r.count === 0) return null;
+      const row = await prisma.tripPlan.findFirst({ where: { id: planId, userId } });
+      return row ? toDomain(row as Row) : null;
+    },
+
+    async setNav(userId, nav, planId) {
+      /*
+       * 目标行必须同时满足 userId 与 confirmed（与 `cancelById` 同一条纪律）。
+       * 不给 planId 时取最新一条 confirmed：车主说的"出发"指当前那趟。
+       */
+      const target = planId
+        ? await prisma.tripPlan.findFirst({ where: { id: planId, userId, status: "confirmed" } })
+        : await prisma.tripPlan.findFirst({
+            where: { userId, status: "confirmed" },
+            orderBy: { committedAt: "desc" },
+          });
+      if (!target) return null;
+
+      // 结束导航是删键：不在 JSON 里留 `nav: null`，端上只需判断键是否存在。
+      const snapshot = { ...(target.plan as Record<string, unknown>) };
+      if (nav) snapshot.nav = nav;
+      else delete snapshot.nav;
+
+      const row = await prisma.tripPlan.update({
+        where: { id: target.id },
+        data: { plan: snapshot as Prisma.InputJsonValue },
+      });
+      return toDomain(row as Row);
+    },
+
+    async currentForUser(userId) {
+      const row = await prisma.tripPlan.findFirst({
+        where: { userId, status: "confirmed" },
+        orderBy: { committedAt: "desc" },
+      });
+      return row ? toDomain(row as Row) : null;
+    },
+
+    async confirmedById(userId, planId) {
+      // userId 与 status 一起进 where，与 `cancelById` / `update` 同一条纪律；
+      // 已取消的行程不再接受补算写回。
+      const row = await prisma.tripPlan.findFirst({
+        where: { id: planId, userId, status: "confirmed" },
+      });
+      return row ? toDomain(row as Row) : null;
+    },
+
+    async list(userId, limit, today) {
+      return this.query(userId, { limit }, today);
+    },
+
+    async activeForUser(userId, today, limit) {
+      const now = today ?? new Date().toISOString().slice(0, 10);
+      const take = Math.min(Math.max(limit ?? TRIP_PLAN_LIST_DEFAULT, 1), TRIP_PLAN_LIST_MAX);
+      const rows = await prisma.tripPlan.findMany({
+        where: {
+          userId,
+          status: "confirmed",
+          // 结束日还没过，或者没定日期：两者都是"还在前面"的行程。
+          OR: [{ endDate: { gte: now } }, { endDate: null }],
+        },
+        take: TRIP_PLAN_LIST_MAX,
+      });
+      return orderActive(rows as Row[], now).slice(0, take);
+    },
+
+    async activeAll(today, limit) {
+      const take = limit ?? ACTIVE_ALL_DEFAULT_LIMIT;
+      const rows = await prisma.tripPlan.findMany({
+        where: {
+          status: "confirmed",
+          OR: [{ endDate: { gte: today } }, { endDate: null }],
+        },
+        orderBy: [{ userId: "asc" }, { startDate: "asc" }],
+        take,
+      });
+      return rows.map((r) => toDomain(r as Row));
+    },
+
+    async listBySessionPrefix(sessionId) {
+      if (!sessionId?.trim()) return [];
+      const rows = await prisma.tripPlan.findMany({
+        where: { sessionId: { startsWith: sessionId } },
+        orderBy: { committedAt: "asc" },
+        take: TRIP_PLAN_LIST_MAX,
+      });
+      return rows.map((r) => toDomain(r as Row));
+    },
+
+    async latestBySessionPrefixes(sessionIds) {
+      const ids = [...new Set(sessionIds.map((x) => x?.trim()).filter((x): x is string => Boolean(x)))];
+      const out = new Map<string, CommittedTripPlan>();
+      if (ids.length === 0) return out;
+      const rows = await prisma.tripPlan.findMany({
+        where: { OR: ids.map((id) => ({ sessionId: { startsWith: id } })) },
+        orderBy: { committedAt: "desc" },
+        take: TRIP_PLAN_LIST_MAX * ids.length,
+      });
+      for (const [owner, r] of assignLatestByPrefix(rows as Row[], ids)) out.set(owner, toDomain(r));
+      return out;
+    },
+
+    async query(userId, q, today) {
+      const status = q.status ?? "confirmed";
+      const take = Math.min(Math.max(q.limit ?? TRIP_PLAN_LIST_DEFAULT, 1), TRIP_PLAN_LIST_MAX);
+      const now = today ?? new Date().toISOString().slice(0, 10);
+      const where = {
+        userId,
+        status: Array.isArray(status) ? { in: status } : status,
+        ...(q.destination ? { destination: { contains: q.destination, mode: "insensitive" as const } } : {}),
+        ...(q.startFrom || q.startTo
+          ? {
+              startDate: {
+                ...(q.startFrom ? { gte: q.startFrom } : {}),
+                ...(q.startTo ? { lte: q.startTo } : {}),
+              },
+            }
+          : {}),
+        /*
+         * `covers`：这一天落在行程期内。
+         *
+         * 与 startFrom / startTo 不同，后者比的是出发日。车主说「9 月 26 号那条」时，
+         * 通常指"那天在这趟行程里"而不是"那天出发"：一份 9/25 出发的三天行程
+         * 覆盖 25、26、27 三天，按出发日对不上。
+         *
+         * `endDate` 为空的老行（该列比 startDate 晚加）退化成只比出发日，
+         * 不整个排除：漏查比多查一条更难排查。
+         */
+        ...(q.covers
+          ? {
+              AND: [
+                { startDate: { lte: q.covers } },
+                { OR: [{ endDate: { gte: q.covers } }, { endDate: null, startDate: q.covers }] },
+              ],
+            }
+          : {}),
+        ...(q.minDays !== undefined || q.maxDays !== undefined
+          ? {
+              days: {
+                ...(q.minDays !== undefined ? { gte: q.minDays } : {}),
+                ...(q.maxDays !== undefined ? { lte: q.maxDays } : {}),
+              },
+            }
+          : {}),
+      };
+
+      /*
+       * 「临近」是相对今天的，所以分三档查，不是一句 orderBy：
+       *
+       *   ① 进行中：start <= 今天 <= end —— 此刻正在走的那趟，永远排最前
+       *   ② 未来：  start > 今天        —— 出发日越近越前
+       *   ③ 已结束：end < 今天          —— 结束日越近越前（刚回来的排前面）
+       *
+       * 日期是 `YYYY-MM-DD` 字符串，字典序即时间序，三档都走得到索引。
+       * 分档查而不是取回来在内存里排：limit 要在排序之后生效，
+       * 内存排需要先取回这个人的全部行程，数量随时间增长。
+       */
+      const ongoing = await prisma.tripPlan.findMany({
+        where: { ...where, startDate: { ...(where.startDate ?? {}), lte: now }, endDate: { gte: now } },
+        orderBy: [{ startDate: "asc" }],
+        take,
+      });
+      const upcoming =
+        ongoing.length >= take
+          ? []
+          : await prisma.tripPlan.findMany({
+              where: { ...where, startDate: { ...(where.startDate ?? {}), gt: now } },
+              orderBy: [{ startDate: "asc" }],
+              take: take - ongoing.length,
+            });
+      const past =
+        ongoing.length + upcoming.length >= take
+          ? []
+          : await prisma.tripPlan.findMany({
+              where: { ...where, endDate: { lt: now } },
+              orderBy: [{ endDate: "desc" }],
+              take: take - ongoing.length - upcoming.length,
+            });
+      /*
+       * 没有出发日的排在最后，且只在还有配额时才带上。
+       * 它们不属于上面任何一档；放进"未来"等于替用户断言它与已定日期行程的先后。
+       */
+      const dated = ongoing.length + upcoming.length + past.length;
+      const undated =
+        dated >= take || q.startFrom || q.startTo
+          ? []
+          : await prisma.tripPlan.findMany({
+              where: { ...where, startDate: null },
+              orderBy: [{ committedAt: "desc" }],
+              take: take - dated,
+            });
+
+      return [...ongoing, ...upcoming, ...past, ...undated].map((r) => toDomain(r as Row));
+    },
+  };
+}

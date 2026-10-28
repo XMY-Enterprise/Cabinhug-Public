@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# 准备本机 .env：不存在时从 .env.example 复制；每一把 CABINHUG_*_MASTER_KEY 为空时生成。
+# 之后只报告哪些密钥还没填、该由用户去填，本脚本不写任何外部服务密钥。
+# 已有文件与已有主密钥都不会被改写，可重复运行。
+# 用法：bash .claude/skills/dev-up/scripts/ensure-env.sh   （在仓库根运行）
+# 退出码：0 = .env 就绪且四项必填（DEEPSEEK_API_KEY、AMAP_SERVER_KEY、AMAP_JS_KEY、AMAP_JS_SECURITY_CODE）都已填；
+#         4 = .env 就绪但有必填项为空，需要用户去填。
+set -eu
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+cd "$ROOT"
+[ -f .env.example ] || { echo "找不到 .env.example，不在仓库根：$ROOT"; exit 2; }
+
+created=0
+if [ -f .env ]; then
+  echo ".env 已存在，沿用（不会改写任何已有值）"
+else
+  cp .env.example .env
+  created=1
+  echo ".env 已从 .env.example 生成"
+fi
+
+value_of() { sed -n "s/^$1=//p" .env | head -1 | tr -d '"'"'"' '; }
+
+# 本机加密主密钥：.env.example 里每一个 CABINHUG_*_MASTER_KEY 都要有值（配置主密钥与 PII 落盘主密钥是两把，
+# 缺任何一把网关启动校验失败）。以 .env.example 为准，新增主密钥不用改这里。
+ensure_local_key() {
+  local key="$1"
+  # 改名前的旧名（ACR-051：CABINHUG_X ← CARLIFE_X）已有值时绝不另生成：服务启动时新名优先，
+  # 新生成的主密钥会顶掉旧的那把，已加密的配置与 PII 全部解不开。
+  local legacy="CARLIFE_${key#CABINHUG_}"
+  if [ -n "$(value_of "$key")" ]; then
+    echo "${key} 已有值，不改"
+  elif [ -n "$(value_of "$legacy")" ]; then
+    echo "${key} 未设置，但旧名 ${legacy} 已有值——沿用（服务启动时按新名生效），不生成新密钥"
+  elif grep -q "^${key}=" .env; then
+    local value; value="$(openssl rand -hex 32)"
+    awk -v k="$key" -v v="$value" 'BEGIN{done=0} $0 ~ "^"k"=" && !done {print k"=\""v"\""; done=1; next} {print}' .env > .env.tmp && mv .env.tmp .env
+    echo "${key} 已生成（openssl rand -hex 32）——本机加密主密钥，不是外部服务密钥"
+  else
+    printf '\n%s="%s"\n' "$key" "$(openssl rand -hex 32)" >> .env
+    echo "${key} 缺少这一行，已追加并生成"
+  fi
+}
+for key in $(sed -n 's/^\(CABINHUG_[A-Z_]*MASTER_KEY\)=.*/\1/p' .env.example); do
+  ensure_local_key "$key"
+done
+
+# 景区导览采集队列：.env.example 缺省注释掉（费用面：每个景点最多 3 次按次计费联网搜索，24h 缓存）。
+# 关着时车机端的景区导览没有内容也没有进度区。
+# 新生成的 .env 直接打开——本机开发要的就是能看到完整功能；已有的 .env 不动，只提示用户自己决定。
+guide_hint=""
+if [ "$created" -eq 1 ]; then
+  if grep -qE '^#? *GUIDE_QUEUE=' .env; then
+    awk 'BEGIN{done=0} /^#? *GUIDE_QUEUE=/ && !done {print "GUIDE_QUEUE=\"on\""; done=1; next} {print}' .env > .env.tmp && mv .env.tmp .env
+  else
+    printf '\nGUIDE_QUEUE="on"\n' >> .env
+  fi
+  echo "GUIDE_QUEUE=\"on\" 已打开——车机端景区导览的后台采集靠它（每个景点至多 3 次按次计费的联网搜索，24h 缓存）"
+elif [ "$(value_of GUIDE_QUEUE)" != "on" ]; then
+  guide_hint="GUIDE_QUEUE 未开启：车机端景区导览不会有内容与进度区。要开的话在 .env 里加一行 GUIDE_QUEUE=\"on\"（每个景点至多 3 次按次计费联网搜索，24h 缓存）"
+fi
+
+echo
+echo "接下来需要用户自己填的配置（本脚本不会替用户填）："
+echo "  必填——缺任何一项都不要往下启动："
+missing=0
+# 四项必填：LLM 没有就是固定假回答；高德三把 key 缺一把，出行规划、沿途天气、车机端与手机端的地图底图都是空的。
+# AMAP_JS_KEY 随前端产物下发（安全性靠高德控制台的域名白名单）；AMAP_JS_SECURITY_CODE 只在网关代理里追加，前端不知道它。
+required_desc() {
+  case "$1" in
+    DEEPSEEK_API_KEY)      echo "LLM 推理。不填 runtime 走确定性 Fake 模型，每个问题都是固定的假回答" ;;
+    AMAP_SERVER_KEY)       echo "高德 Web 服务 key：服务端的路径规划（map_route）与沿途天气。不填出行规划直接报未接入" ;;
+    AMAP_JS_KEY)           echo "高德 JS API key：车机端 / 手机端的地图底图与行程图层。不填地图区域是空的程序化底图" ;;
+    AMAP_JS_SECURITY_CODE) echo "高德 JS API 安全密钥：网关的 /_AMapService 代理转发时追加，与 AMAP_JS_KEY 配对，缺了地图请求全部 403" ;;
+  esac
+}
+for k in DEEPSEEK_API_KEY AMAP_SERVER_KEY AMAP_JS_KEY AMAP_JS_SECURITY_CODE; do
+  if [ -n "$(value_of "$k")" ]; then
+    echo "    ✓ $k 已填"
+  else
+    echo "    ✗ $k 为空——$(required_desc "$k")"
+    missing=1
+  fi
+done
+if [ "$missing" -eq 1 ]; then
+  echo "  填法：打开 .env，把上面为空的项改成 KEY=\"<你的值>\"，保存后回来重跑本脚本。"
+  echo "  高德三把 key 在 https://console.amap.com 同一个应用下申请：Web 服务（AMAP_SERVER_KEY）与 Web 端 JS API（AMAP_JS_KEY + 安全密钥）。"
+fi
+[ -n "$guide_hint" ] && echo "  ! $guide_hint"
+echo "  可选（不填各有降级，见 infra/external-dependencies.md）："
+for k in RAGFLOW_API_KEY ARK_API_KEY Aliyun_AccessKey_ID; do
+  if [ -n "$(value_of "$k")" ]; then echo "    ✓ $k 已填"; else echo "    - $k 未填"; fi
+done
+
+[ "$missing" -eq 0 ] && exit 0
+exit 4

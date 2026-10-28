@@ -1,0 +1,261 @@
+/* 登录门。刻意极简：它出现在还没有任何数据的时刻，
+   主题变量之外的东西在这一刻都可能还没就绪。
+
+   颜色只用 `@cabinhug/ui` 实际提供的 `--hud-*`（themes/tokens.css）。
+   引用未定义的变量会让整页落到硬写的 fallback、不随主题切换；iOS 又按
+   `color-scheme` 画键盘与输入辅助条，两者配色不一致时底部会出现一条异色横带。 */
+.login-gate {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--hud-map-base-2);
+  color: var(--hud-text);
+  /* 卡片居中，但网络诊断展开时列表会把卡片撑高、标题顶进灵动岛，所以照写安全区。 */
+  padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+}
+
+.login-gate--loading {
+  background: var(--hud-map-base-2);
+}
+
+.login-card {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-title {
+  margin: 0;
+  font-size: var(--m-font-display);
+  line-height: var(--m-lh-display);
+  font-weight: var(--m-weight-bold);
+  letter-spacing: 0.02em;
+}
+
+.login-hint {
+  margin: 0;
+  opacity: 0.7;
+  font-size: var(--m-font-body);
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--m-font-body);
+}
+
+.login-field input {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  font-size: var(--m-font-title); /* title 档正好 16px——低于 16 时 iOS 会自动放大页面 */
+}
+
+.login-error {
+  margin: 0;
+  color: var(--hud-danger);
+  font-size: var(--m-font-body);
+}
+
+.login-submit {
+  height: 46px;
+  border: none;
+  border-radius: 10px;
+  background: var(--hud-pin);
+  color: var(--hud-badge-text);
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
+}
+
+.login-submit:disabled {
+  opacity: 0.5;
+}
+
+/* 网关地址（GatewayField）。默认折叠成一行——开发机上地址恒定正确，
+   它只对"装到设备上连不上"的人有意义，不该抢登录表单的注意力。 */
+.login-gateway {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.login-gateway__summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  opacity: 0.65;
+  font-size: var(--m-font-caption);
+  text-align: left;
+}
+
+.login-gateway__summary span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-gateway__summary span:last-child {
+  flex: none;
+  text-decoration: underline;
+}
+
+.login-gateway__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-gateway__hint,
+.login-gateway__warn {
+  margin: 0;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  opacity: 0.7;
+}
+
+.login-gateway__warn {
+  color: var(--hud-warn);
+  opacity: 1;
+}
+
+.login-gateway__input {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  font-size: var(--m-font-title); /* 同上：低于 16px 时 iOS 会自动放大页面 */
+}
+
+.login-gateway__save {
+  height: 40px;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-size: var(--m-font-body);
+}
+
+.login-gateway__save:disabled {
+  opacity: 0.5;
+}
+
+/* 网络诊断：登录失败后才出现，结果原样列出、不加工 */
+.login-diag { margin: 6px 0 12px; }
+.login-diag__btn {
+  padding: 8px 14px; border-radius: 8px; border: 1px solid var(--hud-card-border);
+  background: transparent; color: inherit; font-size: var(--m-font-body);
+}
+.login-diag__list {
+  margin: 10px 0 0; padding-left: 18px; font-size: var(--m-font-caption); line-height: var(--m-lh-caption);
+  color: var(--hud-text-muted); word-break: break-all;
+}
+
+/* ============================================================
+ * 新版 UI 视觉层（定稿 `内部文档`）：
+ * 灰白地图舞台与暖暖，白卡与主行动对齐设计系统。
+ * `__stage` 与 `__mascot` 是纯装饰节点，不参与表单。
+ * ============================================================ */
+.login-gate {
+  /* 把装饰底图的浅蓝压成定稿的灰白（`map/land` 那一族），只在这道门内生效。 */
+  --hud-map-base: #f1f4f8;
+  --hud-map-base-2: #e8eef5;
+  --hud-map-road: #ffffff;
+  --hud-map-road-minor: #f7fafc;
+  --hud-map-water: #d2dfe8;
+  --hud-map-green: #e4ece4;
+  --hud-map-block: #e9eff6;
+  background:
+    radial-gradient(60% 40% at 88% 6%, rgba(255, 176, 60, 0.18), transparent 70%),
+    linear-gradient(180deg, #eef4fb 0%, #e6eef8 100%);
+}
+.login-gate__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  /* 失焦 + 压低对比：它是舞台不是内容，任何一处都不该被读。 */
+  filter: blur(1.5px);
+  opacity: 0.95;
+}
+.login-gate__stage .hud-map-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* 暖暖贴左下角，卡片之下：她是氛围不是控件，不接任何事件。 */
+.login-gate__mascot {
+  position: absolute;
+  left: -10px;
+  bottom: 0;
+  z-index: 1;
+  height: min(38vh, 320px);
+  width: auto;
+  filter: drop-shadow(0 10px 22px rgba(20, 50, 90, 0.26));
+  pointer-events: none;
+}
+
+.login-card {
+  position: relative;
+  z-index: 2;
+  /* 白卡，与其它页的卡片语言一致。 */
+  width: min(380px, 100%);
+  /* 卡片略微上移：底部让给暖暖，别压在她头上。 */
+  margin-bottom: 18vh;
+  gap: 14px;
+  padding: 26px 22px 22px;
+  border-radius: var(--m-radius-modal);
+  background: var(--m-card-bg);
+  border: 1px solid var(--hud-card-border);
+  box-shadow: var(--hud-card-shadow);
+  text-align: center;
+}
+.login-title { font-size: var(--m-font-display); line-height: var(--m-lh-display); font-weight: var(--m-weight-bold); color: var(--hud-text); }
+.login-hint { opacity: 1; color: var(--hud-text-muted); font-size: var(--m-font-body); margin-bottom: 4px; }
+/* 表单左对齐：整卡居中好看，但填的时候标签要贴着框。 */
+.login-field {
+  text-align: left;
+  gap: 8px;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-medium);
+  color: var(--hud-text);
+}
+.login-field input {
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 16px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--m-card-bg);
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-medium);
+  color: var(--hud-text);
+}
+.login-field input:focus {
+  outline: none;
+  border-color: var(--hud-pin);
+  box-shadow: 0 0 0 3px rgba(61, 143, 214, 0.2);
+}
+/* 主行动走琥珀 cta，一屏只有这一个；`--hud-pin` 那支蓝在新版里只属于图标。 */
+.login-submit {
+  height: 48px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  color: #fff;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
+  box-shadow: 0 8px 20px rgba(255, 190, 90, 0.5);
+}
+.login-submit:disabled { opacity: 0.45; box-shadow: none; }
